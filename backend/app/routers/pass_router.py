@@ -2,38 +2,68 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Student
+from ..services.student_service import find_student_by_roll, find_students_by_name
+from ..schemas import PassVerifyRequest, PassVerifyResponseSuccess, PassVerifyResponseFailure
 
 
 router = APIRouter(prefix="/api/pass", tags=["Pass"])
 
 
 @router.post("/verify")
-def verify_roll_number(
-    roll_number: str,
+def verify_pass(
+    request: PassVerifyRequest,
     db: Session = Depends(get_db)
 ):
-    # Normalize user input
-    roll_number = roll_number.strip().upper()
-
-    student = (
-        db.query(Student)
-        .filter(Student.roll_number == roll_number)
-        .first()
-    )
-
-    if not student:
-        raise HTTPException(
-            status_code=404,
-            detail="Roll number not registered"
+    """
+    Verify student identity by roll number or name.
+    Returns 200 with valid/invalid status (never 404).
+    """
+    if request.identifier_type == "roll_number":
+        student = find_student_by_roll(request.value, db)
+        
+        if student:
+            return PassVerifyResponseSuccess(
+                valid=True,
+                student={
+                    "roll_number": student.roll_number,
+                    "name": student.name
+                }
+            )
+        else:
+            return PassVerifyResponseFailure(
+                valid=False,
+                reason="student_not_found",
+                message="Student not registered."
+            )
+    
+    elif request.identifier_type == "name":
+        students = find_students_by_name(request.value, db)
+        
+        if len(students) == 1:
+            student = students[0]
+            return PassVerifyResponseSuccess(
+                valid=True,
+                student={
+                    "roll_number": student.roll_number,
+                    "name": student.name
+                }
+            )
+        elif len(students) > 1:
+            return PassVerifyResponseFailure(
+                valid=False,
+                reason="multiple_students_found",
+                message="Multiple students have this name. Please enter your roll number."
+            )
+        else:
+            return PassVerifyResponseFailure(
+                valid=False,
+                reason="student_not_found",
+                message="Student not registered."
+            )
+    
+    else:
+        return PassVerifyResponseFailure(
+            valid=False,
+            reason="invalid_request",
+            message="identifier_type must be 'roll_number' or 'name'."
         )
-
-    return {
-        "valid": True,
-        "student": {
-            "roll_number": student.roll_number,
-            "name": student.name,
-            "branch": student.branch,
-            "year": student.year
-        }
-    }
