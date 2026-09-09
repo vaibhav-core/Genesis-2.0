@@ -29,3 +29,14 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def migrate_sqlite_schema():
+    """Apply small additive schema updates for the file-based SQLite database."""
+    with engine.begin() as conn:
+        columns = conn.execute(text("PRAGMA table_info(events)")).fetchall()
+        if not any(column[1] == "winner_participant_id" for column in columns):
+            conn.execute(text(
+                "ALTER TABLE events ADD COLUMN winner_participant_id "
+                "INTEGER REFERENCES participants(id)"
+            ))

@@ -13,13 +13,20 @@ from ..schemas import (
     AdminSetEventWinnerRequest,
     AdminVoteRecord,
     CandidateResponse,
-    EventResponse
+    EventResponse,
+    ParticipantCreate,
+    ParticipantResponse,
+    TeamMemberResponse,
 )
 from ..services.admin_service import (
     create_candidate,
     update_candidate,
     create_event,
     set_event_winner,
+    set_event_winner_participant,
+    create_participant,
+    get_event_participants,
+    delete_event_participant,
     get_all_votes
 )
 
@@ -190,7 +197,12 @@ def set_winner(
     """
     Set the winner for an event (admin only).
     """
-    event = set_event_winner(event_id, request.winner, db)
+    if request.winner_participant_id is not None:
+        event = set_event_winner_participant(
+            event_id, request.winner_participant_id, db
+        )
+    else:
+        event = set_event_winner(event_id, request.winner, db)
     
     if not event:
         raise HTTPException(
@@ -199,3 +211,77 @@ def set_winner(
         )
     
     return EventResponse(**event.__dict__)
+
+
+def participant_response(participant) -> ParticipantResponse:
+    return ParticipantResponse(
+        id=participant.id,
+        event_id=participant.event_id,
+        participant_type=participant.participant_type,
+        name=participant.name,
+        roll_number=participant.roll_number,
+        members=[
+            TeamMemberResponse(
+                id=member.id,
+                name=member.name,
+                roll_number=member.roll_number,
+            )
+            for member in participant.members
+        ],
+    )
+
+
+@router.post(
+    "/events/{event_id}/participants",
+    response_model=ParticipantResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_participant(
+    event_id: int,
+    request: ParticipantCreate,
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    participant = create_participant(
+        event_id,
+        request.participant_type,
+        request.name,
+        request.roll_number,
+        request.members or [],
+        db,
+    )
+    if not participant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return participant_response(participant)
+
+
+@router.get(
+    "/events/{event_id}/participants",
+    response_model=list[ParticipantResponse],
+)
+def list_participants(
+    event_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    participants = get_event_participants(event_id, db)
+    if participants is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return [participant_response(participant) for participant in participants]
+
+
+@router.delete(
+    "/events/{event_id}/participants/{participant_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def remove_participant(
+    event_id: int,
+    participant_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if not delete_event_participant(event_id, participant_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Participant not found for this event",
+        )

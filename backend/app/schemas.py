@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 # Student Schemas
@@ -223,7 +223,55 @@ class AdminCreateEventRequest(BaseModel):
 
 # Admin - Set Event Winner
 class AdminSetEventWinnerRequest(BaseModel):
-    winner: str
+    winner: str | None = None
+    winner_participant_id: int | None = None
+
+    @model_validator(mode="after")
+    def require_one_winner(self):
+        if self.winner is None and self.winner_participant_id is None:
+            raise ValueError("winner or winner_participant_id is required")
+        if self.winner is not None and self.winner_participant_id is not None:
+            raise ValueError("provide only one winner field")
+        return self
+
+
+class TeamMemberCreate(BaseModel):
+    name: str
+    roll_number: str | None = None
+
+
+class ParticipantCreate(BaseModel):
+    participant_type: str
+    name: str
+    roll_number: str | None = None
+    members: list[TeamMemberCreate] | None = None
+
+    @model_validator(mode="after")
+    def validate_participant_shape(self):
+        if self.participant_type not in {"individual", "team"}:
+            raise ValueError("participant_type must be individual or team")
+        if self.participant_type == "individual" and self.members is not None:
+            raise ValueError("individual participants cannot include members")
+        if self.participant_type == "team" and not self.members:
+            raise ValueError("team participants require at least one member")
+        if self.participant_type == "team" and self.roll_number is not None:
+            raise ValueError("team participants cannot include roll_number")
+        return self
+
+
+class TeamMemberResponse(BaseModel):
+    id: int
+    name: str
+    roll_number: str | None = None
+
+
+class ParticipantResponse(BaseModel):
+    id: int
+    event_id: int
+    participant_type: str
+    name: str
+    roll_number: str | None = None
+    members: list[TeamMemberResponse] = []
 
 
 # Admin - Vote Record
@@ -247,6 +295,7 @@ class EventResponse(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
     winner: str | None = None
+    winner_participant_id: int | None = None
 
     class Config:
         from_attributes = True

@@ -5,7 +5,8 @@ Admin service: candidates, events, and vote management.
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from ..models import Candidate, Event, Vote, Student
+from ..models import Candidate, Event, Participant, TeamMember, Vote, Student
+from .student_service import normalize_roll
 
 
 def create_candidate(name: str, category: str, photo: str | None, db: Session) -> Candidate:
@@ -67,6 +68,87 @@ def set_event_winner(event_id: int, winner: str, db: Session) -> Event | None:
     db.commit()
     db.refresh(event)
     return event
+
+
+def set_event_winner_participant(
+    event_id: int, participant_id: int, db: Session
+) -> Event | None:
+    """Set an event winner from one of its registered participants."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    participant = db.query(Participant).filter(
+        Participant.id == participant_id,
+        Participant.event_id == event_id,
+    ).first()
+
+    if not event or not participant:
+        return None
+
+    event.winner_participant_id = participant.id
+    event.winner = participant.name
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+def create_participant(
+    event_id: int,
+    participant_type: str,
+    name: str,
+    roll_number: str | None,
+    members: list,
+    db: Session,
+) -> Participant | None:
+    """Create an individual or team participant for an existing event."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        return None
+
+    participant = Participant(
+        event_id=event_id,
+        participant_type=participant_type,
+        name=name,
+        roll_number=normalize_roll(roll_number) if roll_number else None,
+    )
+    if participant_type == "team":
+        participant.members = [
+            TeamMember(
+                name=member.name,
+                roll_number=normalize_roll(member.roll_number)
+                if member.roll_number else None,
+            )
+            for member in members
+        ]
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+    return participant
+
+
+def get_event_participants(event_id: int, db: Session) -> list[Participant] | None:
+    """Return participants for an event, or None when the event is missing."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        return None
+    return db.query(Participant).filter(Participant.event_id == event_id).all()
+
+
+def delete_event_participant(
+    event_id: int, participant_id: int, db: Session
+) -> bool:
+    """Delete a participant belonging to an event and clear any winner reference."""
+    participant = db.query(Participant).filter(
+        Participant.id == participant_id,
+        Participant.event_id == event_id,
+    ).first()
+    if not participant:
+        return False
+
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if event and event.winner_participant_id == participant_id:
+        event.winner_participant_id = None
+    db.delete(participant)
+    db.commit()
+    return True
 
 
 def get_all_votes(db: Session) -> list[dict]:

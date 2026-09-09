@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from .database import Base, engine
+from .database import Base, engine, migrate_sqlite_schema
 from . import models
 from .routers.pass_router import router as pass_router
 from .routers.voting_router import router as voting_router
@@ -9,6 +9,7 @@ from .routers.events_router import router as events_router
 
 
 Base.metadata.create_all(bind=engine)
+migrate_sqlite_schema()
 
 app = FastAPI(title="Freshers Backend")
 

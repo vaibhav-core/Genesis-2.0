@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import String, Boolean, ForeignKey, UniqueConstraint, DateTime, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
@@ -57,3 +57,54 @@ class Event(Base):
     start_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     end_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     winner: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    winner_participant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("participants.id"), nullable=True
+    )
+
+    participants: Mapped[list["Participant"]] = relationship(
+        "Participant",
+        back_populates="event",
+        foreign_keys="Participant.event_id",
+        cascade="all, delete-orphan",
+    )
+    winner_participant: Mapped["Participant | None"] = relationship(
+        "Participant",
+        foreign_keys=[winner_participant_id],
+    )
+
+
+class Participant(Base):
+    __tablename__ = "participants"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[int] = mapped_column(
+        ForeignKey("events.id"), nullable=False, index=True
+    )
+    participant_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    roll_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    event: Mapped[Event] = relationship(
+        "Event", back_populates="participants", foreign_keys=[event_id]
+    )
+    members: Mapped[list["TeamMember"]] = relationship(
+        "TeamMember", back_populates="participant", cascade="all, delete-orphan"
+    )
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    participant_id: Mapped[int] = mapped_column(
+        ForeignKey("participants.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    roll_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    participant: Mapped[Participant] = relationship(
+        "Participant", back_populates="members"
+    )
