@@ -9,11 +9,7 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("events", sa.Column("location", sa.String(150), nullable=True))
-    op.add_column("events", sa.Column("competition_format", sa.String(20), nullable=True))
-    op.add_column("events", sa.Column("voting_enabled", sa.Boolean(), nullable=False, server_default=sa.false()))
     op.add_column("events", sa.Column("is_competitive", sa.Boolean(), nullable=False, server_default=sa.false()))
-    op.add_column("events", sa.Column("voting_status", sa.String(20), nullable=False, server_default="not_started"))
 
 
 def downgrade():
