@@ -133,6 +133,23 @@ class TestAdminVotes:
         assert free_vote["voter_name"] == "Free vote"
         assert free_vote["voter_roll_number"] is None
 
+    def test_wipe_votes_deletes_votes_and_clears_winners(self, client, admin_token, sample_students, sample_candidates, test_db):
+        from app.models import Event, Vote
+
+        competition = test_db.query(Event).filter(Event.id == 1).first()
+        competition.winner = "Old winner"
+        test_db.add(Vote(event_id=1, candidate_id=1, voter_id=sample_students[0].id))
+        test_db.add(Vote(event_id=1, candidate_id=2, free_voter_identifier="FREE1"))
+        test_db.commit()
+
+        response = client.delete("/api/admin/votes", headers={"Authorization": f"Bearer {admin_token}"})
+        assert response.status_code == 200
+        assert response.json()["deleted"] == 2
+        assert test_db.query(Vote).count() == 0
+        test_db.refresh(competition)
+        assert competition.winner is None
+        assert competition.winner_participant_id is None
+
 
 class TestAdminCandidates:
     """Test admin candidate management."""

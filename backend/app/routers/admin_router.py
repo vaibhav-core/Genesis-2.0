@@ -31,6 +31,7 @@ from ..services.admin_service import (
     get_event_participants,
     delete_participant,
 )
+from ..services.vote_service import reset_all_votes
 
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
@@ -126,6 +127,14 @@ def get_votes(
     """
     votes = get_all_votes(db)
     return [AdminVoteRecord(**v) for v in votes]
+
+
+@router.delete("/votes")
+def wipe_votes(
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    return {"deleted": reset_all_votes(db)}
 
 
 @router.post("/candidates")

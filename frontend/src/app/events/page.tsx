@@ -13,6 +13,7 @@ type BackendEvent = {
 	location?: string | null;
 	voting_enabled: boolean;
 	voting_status: "not_started" | "open" | "closed";
+	winner?: string | null;
 };
 
 const API_BASE = "/backend-api";
@@ -34,6 +35,8 @@ function toGenesisEvent(event: BackendEvent, index: number): GenesisEvent {
 		category: event.voting_enabled ? "Competition" : "Programme",
 		visual: String(index + 1).padStart(2, "0"),
 		route: event.voting_enabled ? `/events/${event.id}/vote` : undefined,
+		winner: event.winner,
+		votingStatus: event.voting_status,
 	};
 }
 
@@ -48,7 +51,17 @@ export default function EventsPage() {
 				if (!response.ok) throw new Error("The event schedule is unavailable right now.");
 				return response.json() as Promise<BackendEvent[]>;
 			})
-			.then((data) => setEvents(data.map(toGenesisEvent)))
+			.then(async (data) => {
+				const mapped = data.map(toGenesisEvent);
+				const leaders = await Promise.all(data.map(async (event) => {
+					if (!event.voting_enabled || event.voting_status !== "open") return null;
+					const result = await fetch(`${API_BASE}/voting/results?event_id=${event.id}`, { cache: "no-store" });
+					if (!result.ok) return null;
+					const body = await result.json() as { results?: { name: string; votes: number }[] };
+					return body.results?.[0]?.votes ? body.results[0].name : null;
+				}));
+				setEvents(mapped.map((event, index) => ({ ...event, winner: leaders[index] ?? event.winner })));
+			})
 			.catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "The event schedule is unavailable right now."))
 			.finally(() => setLoading(false));
 	}, []);

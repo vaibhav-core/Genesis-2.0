@@ -52,6 +52,7 @@ h1 em, h2 em { color: var(--lime); font-style: normal; }
 .status-live { color: var(--orange); }
 .event-body h3, .candidate h3, .category h3 { font-size: 25px; letter-spacing: -.05em; margin: 50px 0 12px; }
 .event-body p, .category p { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.event-winner { color: var(--ink) !important; background: var(--lime); display: inline-block; font-family: 'DM Mono', monospace; font-size: 11px !important; padding: 7px 9px; text-transform: uppercase; }
 .event-time { border-top: 1px solid var(--line); margin-top: 25px; padding-top: 13px; }
 .text-link { display: inline-block; font: 12px 'DM Mono', monospace; margin-top: 25px; text-transform: uppercase; }
 .centered { display: block; margin-top: 50px; text-align: center; }
@@ -127,6 +128,10 @@ footer small { text-align: right; }
 .admin-login .button { cursor: pointer; margin-top: 16px; }
 .modal-close { background: none; border: 0; color: var(--ink); cursor: pointer; font-size: 25px; position: absolute; right: 18px; top: 13px; }
 .admin-error, .admin-alert { background: #ffd9d0; color: #7e2f20; font: 12px 'DM Mono', monospace; padding: 12px; }
+.admin-danger-zone { margin: 0 auto 20px; max-width: 1440px; text-align: right; }
+.danger-button { background: #8f2f21; border: 1px solid #8f2f21; color: #fffef8; cursor: pointer; font: 11px 'DM Mono', monospace; padding: 11px 14px; text-transform: uppercase; }
+.danger-button:disabled { cursor: not-allowed; opacity: .4; }
+.danger-modal p { color: #63665b; line-height: 1.5; }
 .admin-page { background: #f0f1eb; color: var(--ink); min-height: 100vh; padding: 45px 5vw 90px; }
 .admin-header { align-items: end; border-bottom: 1px solid #c2c5ba; display: flex; justify-content: space-between; margin: 0 auto 28px; max-width: 1440px; padding-bottom: 25px; }
 .admin-header h1 { font-size: clamp(2.6rem, 6vw, 5rem); letter-spacing: -.08em; line-height: .85; margin: 20px 0 0; }

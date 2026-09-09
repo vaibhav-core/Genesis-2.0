@@ -12,6 +12,8 @@ export interface GenesisEvent {
   category: string;
   visual: string;
   route?: string;
+  winner?: string | null;
+  votingStatus?: "not_started" | "open" | "closed";
 }
 
 export const EVENTS: { day1: GenesisEvent[]; day2: GenesisEvent[] } = {

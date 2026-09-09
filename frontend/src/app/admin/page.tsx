@@ -32,6 +32,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [showWipeVotes, setShowWipeVotes] = useState(false);
+  const [wipeConfirmation, setWipeConfirmation] = useState("");
 
   const signOut = () => {
     sessionStorage.removeItem(TOKEN_KEY);
@@ -122,6 +124,18 @@ export default function AdminPage() {
     }
   };
 
+  const wipeVotes = async () => {
+    if (wipeConfirmation !== "DELETE") return;
+    try {
+      await request("/admin/votes", { method: "DELETE" });
+      setShowWipeVotes(false);
+      setWipeConfirmation("");
+      await loadDashboard();
+    } catch (caught) {
+      if (caught instanceof Error && caught.message !== "SESSION_EXPIRED") setError(caught.message);
+    }
+  };
+
   return (
     <main className="admin-page">
       <header className="admin-header">
@@ -129,6 +143,8 @@ export default function AdminPage() {
         <button className="admin-ghost-button" onClick={signOut} type="button">Sign out</button>
       </header>
       {error && <div className="admin-alert" role="alert">{error}</div>}
+      <div className="admin-danger-zone"><button className="danger-button" onClick={() => setShowWipeVotes(true)} type="button">Wipe all votes</button></div>
+      {showWipeVotes && <div className="admin-modal-backdrop" role="presentation"><dialog className="admin-login danger-modal" open><span className="eyebrow">IRREVERSIBLE ACTION</span><h2>Wipe all votes?</h2><p>This deletes registered and free-mode votes across every event and clears winner fields. Type DELETE to confirm.</p><input value={wipeConfirmation} onChange={(input) => setWipeConfirmation(input.target.value)} placeholder="DELETE" /><div className="control-row"><button className="admin-ghost-button" onClick={() => { setShowWipeVotes(false); setWipeConfirmation(""); }} type="button">Cancel</button><button className="danger-button" disabled={wipeConfirmation !== "DELETE"} onClick={() => void wipeVotes()} type="button">Delete votes</button></div></dialog></div>}
       <section className="admin-layout">
         <div className="admin-main-column">
           <section className="admin-panel">
