@@ -1,5 +1,7 @@
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel
+from pydantic import model_validator
 
 
 # Student Schemas
@@ -24,8 +26,9 @@ class Student(StudentBase):
 
 # Candidate Schemas
 class CandidateBase(BaseModel):
+    event_id: int
     name: str
-    category: str
+    gender: str | None = None
     photo: str | None = None
     active: bool = True
 
@@ -43,9 +46,10 @@ class Candidate(CandidateBase):
 
 # Vote Schemas
 class VoteBase(BaseModel):
-    voter_id: int
+    event_id: int
     candidate_id: int
-    category: str
+    voter_id: int | None = None
+    free_voter_identifier: str | None = None
 
 
 class VoteCreate(VoteBase):
@@ -125,8 +129,9 @@ class PassVerifyResponseFailure(BaseModel):
 # Voting - Candidate List
 class CandidateResponse(BaseModel):
     id: int
+    event_id: int
     name: str
-    category: str
+    gender: str | None = None
     photo: str | None = None
     active: bool
 
@@ -136,9 +141,20 @@ class CandidateResponse(BaseModel):
 
 # Voting - Verify
 class VotingVerifyRequest(BaseModel):
-    roll_number: str
-    name: str
-    category: str
+    mode: Literal["registered", "free"]
+    event_id: int
+    candidate_id: int
+    roll_number: str | None = None
+    name: str | None = None
+    voter_identifier: str | None = None
+
+    @model_validator(mode="after")
+    def validate_mode_fields(self):
+        if self.mode == "registered" and (not self.roll_number or not self.name):
+            raise ValueError("registered mode requires roll_number and name")
+        if self.mode == "free" and not self.voter_identifier:
+            raise ValueError("free mode requires voter_identifier")
+        return self
 
 
 class VotingVerifyResponseSuccess(BaseModel):
@@ -154,10 +170,20 @@ class VotingVerifyResponseFailure(BaseModel):
 
 # Voting - Vote Submission
 class VoteRequest(BaseModel):
-    roll_number: str
-    name: str
+    mode: Literal["registered", "free"]
+    event_id: int
     candidate_id: int
-    category: str
+    roll_number: str | None = None
+    name: str | None = None
+    voter_identifier: str | None = None
+
+    @model_validator(mode="after")
+    def validate_mode_fields(self):
+        if self.mode == "registered" and (not self.roll_number or not self.name):
+            raise ValueError("registered mode requires roll_number and name")
+        if self.mode == "free" and not self.voter_identifier:
+            raise ValueError("free mode requires voter_identifier")
+        return self
 
 
 class VoteResponseSuccess(BaseModel):
@@ -178,7 +204,7 @@ class VotingResultCandidate(BaseModel):
 
 
 class VotingResultsResponse(BaseModel):
-    category: str
+    event_id: int
     results: list[VotingResultCandidate]
 
 
@@ -200,15 +226,16 @@ class AdminLoginResponse(BaseModel):
 
 # Admin - Create Candidate
 class AdminCreateCandidateRequest(BaseModel):
+    event_id: int
     name: str
-    category: str
+    gender: str | None = None
     photo: str | None = None
 
 
 # Admin - Update Candidate
 class AdminUpdateCandidateRequest(BaseModel):
     name: str | None = None
-    category: str | None = None
+    gender: str | None = None
     photo: str | None = None
     active: bool | None = None
 
@@ -221,9 +248,64 @@ class AdminCreateEventRequest(BaseModel):
     end_time: datetime | None = None
 
 
+class AdminUpdateEventRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    location: str | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    competition_format: Literal["individual", "team"] | None = None
+    voting_enabled: bool | None = None
+
+
 # Admin - Set Event Winner
 class AdminSetEventWinnerRequest(BaseModel):
-    winner: str
+    winner: str | None = None
+    winner_participant_id: int | None = None
+
+    @model_validator(mode="after")
+    def require_winner(self):
+        if self.winner is None and self.winner_participant_id is None:
+            raise ValueError("winner or winner_participant_id is required")
+        return self
+
+
+class TeamMemberInput(BaseModel):
+    name: str
+    roll_number: str | None = None
+
+
+class AdminCreateParticipantRequest(BaseModel):
+    participant_type: Literal["individual", "team"]
+    name: str
+    roll_number: str | None = None
+    members: list[TeamMemberInput] | None = None
+
+    @model_validator(mode="after")
+    def validate_members(self):
+        if self.participant_type == "individual" and self.members is not None:
+            raise ValueError("individual participants cannot include members")
+        if self.participant_type == "team" and not self.members:
+            raise ValueError("team participants require at least one member")
+        return self
+
+
+class TeamMemberResponse(BaseModel):
+    id: int
+    name: str
+    roll_number: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ParticipantResponse(BaseModel):
+    id: int
+    event_id: int
+    participant_type: str
+    name: str
+    roll_number: str | None = None
+    members: list[TeamMemberResponse] = []
 
 
 # Admin - Vote Record
@@ -231,7 +313,7 @@ class AdminVoteRecord(BaseModel):
     voter_name: str
     voter_roll_number: str
     candidate_name: str
-    category: str
+    event_id: int
     created_at: datetime
 
 
@@ -246,7 +328,12 @@ class EventResponse(BaseModel):
     description: str | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
+    location: str | None = None
+    competition_format: str | None = None
+    voting_enabled: bool = False
+    voting_status: str = "not_started"
     winner: str | None = None
+    winner_participant_id: int | None = None
 
     class Config:
         from_attributes = True

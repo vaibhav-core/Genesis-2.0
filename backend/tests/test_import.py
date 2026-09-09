@@ -15,8 +15,9 @@ from sqlalchemy.pool import StaticPool
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from app.database import Base
-from app.models import Student
+from app.models import Student, Event
 from import_students import import_students
+from import_schedule import import_schedule
 
 
 class TestStudentImport:
@@ -62,7 +63,6 @@ class TestStudentImport:
             assert students[0].name == "Rahul Kumar"
         finally:
             Path(csv_path).unlink()
-    
     def test_import_idempotent(self, import_session_factory):
         """Import same CSV twice should skip duplicates."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
@@ -91,6 +91,30 @@ class TestStudentImport:
             assert count2 == 1  # No new students added
         finally:
             Path(csv_path).unlink()
+
+
+class TestScheduleImport:
+    @pytest.fixture
+    def import_session_factory(self):
+        engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(bind=engine)
+        yield sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        engine.dispose()
+
+    def test_schedule_import_is_idempotent(self, import_session_factory):
+        schedule_path = Path(__file__).parents[2] / "abc.txt"
+        import_schedule(str(schedule_path), session_factory=import_session_factory)
+        import_schedule(str(schedule_path), session_factory=import_session_factory)
+        db = import_session_factory()
+        events = db.query(Event).all()
+        db.close()
+        assert len(events) == 10
+        assert all(not event.voting_enabled for event in events)
+        assert all(event.competition_format is None for event in events)
     
     def test_import_flexible_headers(self, import_session_factory):
         """Import with flexible header variants."""

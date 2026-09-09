@@ -33,7 +33,8 @@ def get_candidates(db: Session = Depends(get_db)):
         CandidateResponse(
             id=c.id,
             name=c.name,
-            category=c.category,
+            event_id=c.event_id,
+            gender=c.gender,
             photo=c.photo,
             active=c.active
         )
@@ -50,12 +51,7 @@ def verify_voting(
     Verify if a student can vote in a category.
     Returns 200 with valid/invalid status.
     """
-    is_valid, reason, student = verify_vote_eligibility(
-        request.roll_number,
-        request.name,
-        request.category,
-        db
-    )
+    is_valid, reason, student = verify_vote_eligibility(request, db)
     
     if is_valid:
         return VotingVerifyResponseSuccess(
@@ -67,7 +63,10 @@ def verify_voting(
             "student_not_found": "Student not registered.",
             "identity_mismatch": "Name does not match roll number.",
             "not_eligible": "You are not eligible to vote.",
-            "already_voted": "You have already voted in this category."
+            "already_voted": "You have already voted in this event.",
+            "voting_not_enabled": "Voting is not enabled for this event.",
+            "voting_not_open": "Voting is not open for this event.",
+            "invalid_candidate": "Candidate is not valid for this event."
         }.get(reason, "Validation failed.")
         
         return VotingVerifyResponseFailure(
@@ -86,13 +85,7 @@ def submit_voting(
     Submit a vote.
     Returns 200 with success/failure status (business-logic errors, not HTTP errors).
     """
-    success, reason, message = submit_vote(
-        request.roll_number,
-        request.name,
-        request.candidate_id,
-        request.category,
-        db
-    )
+    success, reason, message = submit_vote(request, db)
     
     if success:
         return VoteResponseSuccess(success=True)
@@ -105,15 +98,15 @@ def submit_voting(
 
 
 @router.get("/results")
-def get_results(category: str = Query(...), db: Session = Depends(get_db)):
+def get_results(event_id: int = Query(...), db: Session = Depends(get_db)):
     """
     Get voting results for a category.
     Results sorted by votes descending.
     """
-    results = get_voting_results(category, db)
+    results = get_voting_results(event_id, db)
     
     return VotingResultsResponse(
-        category=category,
+        event_id=event_id,
         results=[
             VotingResultCandidate(**r)
             for r in results

@@ -102,13 +102,23 @@ def sample_students(test_db):
 @pytest.fixture
 def sample_candidates(test_db):
     """Create sample candidates for testing."""
-    from app.models import Candidate
+    from app.models import Candidate, Event
+
+    events = [
+        Event(name="Mister Freshers", voting_enabled=True, voting_status="open"),
+        Event(name="Miss Freshers", voting_enabled=True, voting_status="open"),
+    ]
+    for event in events:
+        test_db.add(event)
+    test_db.commit()
+    for event in events:
+        test_db.refresh(event)
     
     candidates = [
-        Candidate(name="Candidate A", category="Mister Freshers", active=True),
-        Candidate(name="Candidate B", category="Mister Freshers", active=True),
-        Candidate(name="Candidate C", category="Miss Freshers", active=True),
-        Candidate(name="Candidate D", category="Miss Freshers", active=False),  # Inactive
+        Candidate(event_id=events[0].id, name="Candidate A", active=True),
+        Candidate(event_id=events[0].id, name="Candidate B", active=True),
+        Candidate(event_id=events[1].id, name="Candidate C", active=True),
+        Candidate(event_id=events[1].id, name="Candidate D", active=False),  # Inactive
     ]
     
     for candidate in candidates:

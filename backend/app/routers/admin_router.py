@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -10,17 +10,25 @@ from ..schemas import (
     AdminCreateCandidateRequest,
     AdminUpdateCandidateRequest,
     AdminCreateEventRequest,
+    AdminUpdateEventRequest,
     AdminSetEventWinnerRequest,
+    AdminCreateParticipantRequest,
     AdminVoteRecord,
     CandidateResponse,
-    EventResponse
+    EventResponse,
+    ParticipantResponse,
 )
 from ..services.admin_service import (
     create_candidate,
     update_candidate,
     create_event,
+    update_event,
+    set_voting_status,
     set_event_winner,
-    get_all_votes
+    get_all_votes,
+    create_participant,
+    get_event_participants,
+    delete_participant,
 )
 
 
@@ -129,11 +137,14 @@ def create_new_candidate(
     Create a new candidate (admin only).
     """
     candidate = create_candidate(
+        request.event_id,
         request.name,
-        request.category,
+        request.gender,
         request.photo,
         db
     )
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Event not found or voting is not enabled")
     return CandidateResponse(**candidate.__dict__)
 
 
@@ -180,6 +191,35 @@ def create_new_event(
     return EventResponse(**event.__dict__)
 
 
+@router.patch("/events/{event_id}")
+def update_event_endpoint(
+    event_id: int,
+    request: AdminUpdateEventRequest,
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    event = update_event(event_id, db, **request.model_dump(exclude_unset=True))
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return EventResponse(**event.__dict__)
+
+
+@router.post("/events/{event_id}/voting/start")
+def start_voting(event_id: int, admin: AdminUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    event = set_voting_status(event_id, "open", db)
+    if not event:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Event not found or voting is not enabled")
+    return EventResponse(**event.__dict__)
+
+
+@router.post("/events/{event_id}/voting/stop")
+def stop_voting(event_id: int, admin: AdminUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    event = set_voting_status(event_id, "closed", db)
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return EventResponse(**event.__dict__)
+
+
 @router.post("/events/{event_id}/winner")
 def set_winner(
     event_id: int,
@@ -190,7 +230,12 @@ def set_winner(
     """
     Set the winner for an event (admin only).
     """
-    event = set_event_winner(event_id, request.winner, db)
+    event = set_event_winner(
+        event_id,
+        request.winner,
+        request.winner_participant_id,
+        db,
+    )
     
     if not event:
         raise HTTPException(
@@ -199,3 +244,61 @@ def set_winner(
         )
     
     return EventResponse(**event.__dict__)
+
+
+def participant_response(participant) -> ParticipantResponse:
+    return ParticipantResponse(
+        id=participant.id,
+        event_id=participant.event_id,
+        participant_type=participant.participant_type,
+        name=participant.name,
+        roll_number=participant.roll_number,
+        members=participant.team_members,
+    )
+
+
+@router.post("/events/{event_id}/participants", status_code=status.HTTP_201_CREATED)
+def add_participant(
+    event_id: int,
+    request: AdminCreateParticipantRequest,
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        participant = create_participant(
+            event_id,
+            request.participant_type,
+            request.name,
+            request.roll_number,
+            [member.model_dump() for member in request.members] if request.members else None,
+            db,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if not participant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return participant_response(participant)
+
+
+@router.get("/events/{event_id}/participants", response_model=list[ParticipantResponse])
+def list_participants(
+    event_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    participants = get_event_participants(event_id, db)
+    if participants is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return [participant_response(participant) for participant in participants]
+
+
+@router.delete("/events/{event_id}/participants/{participant_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_participant(
+    event_id: int,
+    participant_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if not delete_participant(event_id, participant_id, db):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

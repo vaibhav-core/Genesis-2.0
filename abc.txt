@@ -1,0 +1,13 @@
+DAY  		Date		Event Name						Time Stamps
+
+Saturday	12-sept		Cipher (Treasure Hunt)					8:00 am to 1:00 pm
+Saturday	12-sept		Stand UP and Dance					4:00pm to 7:00pm
+Saturday	12-sept		Jamming and other events				9:00pm to 11:00pm
+
+Sunday		13-sept		IGL-IIT GOT LATENT 					10:00am to 12:00 pm
+Sunday		13-sept		Dance							1:30pm to 2:00 pm 
+Sunday		13-sept		Mister fresher and miss freshie competition		2:00pm to 5:00 pm
+Sunday		13-sept		Branch wise photo session				5:00 pm to 5:30pm
+Sunday		13-sept		Snack break						5:30pm to 6:30 pm
+Sunday		13-sept		Music performance by rhapsody				6:30pm to 7:30pm
+Sunday		13-sept		DJ night						7:30pm to 10:00pm

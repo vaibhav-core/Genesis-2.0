@@ -100,8 +100,8 @@ class TestAdminVotes:
         
         # Create votes
         votes = [
-            Vote(voter_id=sample_students[0].id, candidate_id=1, category="Mister Freshers"),
-            Vote(voter_id=sample_students[1].id, candidate_id=1, category="Mister Freshers"),
+            Vote(voter_id=sample_students[0].id, event_id=1, candidate_id=1),
+            Vote(voter_id=sample_students[1].id, event_id=1, candidate_id=1),
         ]
         
         for vote in votes:
@@ -122,7 +122,7 @@ class TestAdminVotes:
             assert "voter_name" in record
             assert "voter_roll_number" in record
             assert "candidate_name" in record
-            assert "category" in record
+            assert "event_id" in record
             assert "created_at" in record
         
         # Check content
@@ -133,22 +133,45 @@ class TestAdminVotes:
 class TestAdminCandidates:
     """Test admin candidate management."""
     
-    def test_create_candidate(self, client, admin_token):
+    def test_create_candidate(self, client, admin_token, test_db):
         """Create a new candidate."""
+        from app.models import Event
+        competition = Event(name="Best Dancer", voting_enabled=True)
+        test_db.add(competition)
+        test_db.commit()
+        test_db.refresh(competition)
         response = client.post(
             "/api/admin/candidates",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={
                 "name": "New Candidate",
-                "category": "Best Dancer",
+                "event_id": competition.id,
+                "gender": "other",
                 "photo": "https://example.com/photo.jpg"
             }
         )
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "New Candidate"
-        assert data["category"] == "Best Dancer"
+        assert data["event_id"] == competition.id
+        assert data["gender"] == "other"
         assert data["active"] is True
+
+    def test_update_event(self, client, admin_token, test_db):
+        from app.models import Event
+        event = Event(name="Schedule Entry")
+        test_db.add(event)
+        test_db.commit()
+        test_db.refresh(event)
+        response = client.patch(
+            f"/api/admin/events/{event.id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"location": "Main Hall", "voting_enabled": True, "competition_format": "team"},
+        )
+        assert response.status_code == 200
+        assert response.json()["location"] == "Main Hall"
+        assert response.json()["competition_format"] == "team"
+        assert response.json()["voting_enabled"] is True
     
     def test_update_candidate(self, client, admin_token, sample_candidates):
         """Update a candidate."""
