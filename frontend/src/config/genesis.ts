@@ -7,8 +7,8 @@ export interface GenesisEvent {
   title: string;
   description: string;
   date: string;
-  startTime: string;
-  endTime: string;
+  startTime?: string;
+  endTime?: string;
   category: string;
   visual: string;
   route?: string;
