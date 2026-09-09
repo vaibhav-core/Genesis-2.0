@@ -94,14 +94,15 @@ class TestAdminVotes:
         assert isinstance(data, list)
         assert len(data) == 0
     
-    def test_get_votes_with_data(self, client, admin_token, sample_students, sample_candidates, test_db):
-        """Get votes returns all votes with voter and candidate info."""
+    def test_get_votes_with_registered_and_free_data(self, client, admin_token, sample_students, sample_candidates, test_db):
+        """Get admin votes includes registered and free-mode votes."""
         from app.models import Vote
         
         # Create votes
         votes = [
             Vote(voter_id=sample_students[0].id, event_id=1, candidate_id=1),
             Vote(voter_id=sample_students[1].id, event_id=1, candidate_id=1),
+            Vote(free_voter_identifier="24CS099", event_id=1, candidate_id=2),
         ]
         
         for vote in votes:
@@ -115,7 +116,7 @@ class TestAdminVotes:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
+        assert len(data) == 3
         
         # Check structure
         for record in data:
@@ -126,8 +127,11 @@ class TestAdminVotes:
             assert "created_at" in record
         
         # Check content
-        assert {record["voter_roll_number"] for record in data} == {"24ME001", "24ME002"}
-        assert {record["candidate_name"] for record in data} == {"Candidate A"}
+        assert {record["voter_roll_number"] for record in data if record["voter_roll_number"]} == {"24ME001", "24ME002"}
+        assert {record["candidate_name"] for record in data} == {"Candidate A", "Candidate B"}
+        free_vote = next(record for record in data if record["free_voter_identifier"] == "24CS099")
+        assert free_vote["voter_name"] == "Free vote"
+        assert free_vote["voter_roll_number"] is None
 
 
 class TestAdminCandidates:
@@ -213,6 +217,21 @@ class TestAdminEvents:
         data = response.json()
         assert data["name"] == "Freshers Party"
         assert data["winner"] is None
+
+    def test_delete_event(self, client, admin_token, test_db):
+        from app.models import Event
+
+        event = Event(name="Removable Event")
+        test_db.add(event)
+        test_db.commit()
+        test_db.refresh(event)
+
+        response = client.delete(
+            f"/api/admin/events/{event.id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 204
+        assert test_db.query(Event).filter_by(id=event.id).first() is None
     
     def test_set_event_winner(self, client, admin_token, test_db):
         """Set winner for an event."""

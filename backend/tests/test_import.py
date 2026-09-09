@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from app.database import Base
 from app.models import Student, Event
 from import_students import import_students
-from import_schedule import import_schedule
+from import_schedule import ScheduleParseError, import_schedule
 
 
 class TestStudentImport:
@@ -105,17 +105,38 @@ class TestScheduleImport:
         yield sessionmaker(autocommit=False, autoflush=False, bind=engine)
         engine.dispose()
 
-    def test_schedule_import_is_idempotent(self, import_session_factory):
-        schedule_path = Path(__file__).parents[2] / "abc.txt"
-        import_schedule(str(schedule_path), session_factory=import_session_factory)
-        import_schedule(str(schedule_path), session_factory=import_session_factory)
+    @pytest.fixture
+    def schedule_file(self, tmp_path):
+        path = tmp_path / "schedule.txt"
+        path.write_text(
+            "DAY\tDate\tEvent Name\tTime Stamps\n"
+            "Saturday\t12-sept\t\tCipher\t\t8:00 am to 1:00 pm\n"
+            "Sunday\t13-sept\t\tDance\t\t1:30pm to 2:00 pm\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def test_schedule_import_is_idempotent(self, import_session_factory, schedule_file):
+        expected_names = ["Cipher", "Dance"]
+        import_schedule(str(schedule_file), year=2026, session_factory=import_session_factory)
+        import_schedule(str(schedule_file), year=2026, session_factory=import_session_factory)
         db = import_session_factory()
-        events = db.query(Event).all()
+        events = db.query(Event).order_by(Event.id).all()
         db.close()
-        assert len(events) == 10
-        assert all(not event.voting_enabled for event in events)
-        assert all(event.competition_format is None for event in events)
-    
+        assert [event.name for event in events] == expected_names
+        assert len(events) == len(expected_names)
+        assert all(event.start_time is not None and event.end_time is not None for event in events)
+
+    def test_schedule_import_requires_year(self, import_session_factory, schedule_file):
+        with pytest.raises(ScheduleParseError, match="year"):
+            import_schedule(str(schedule_file), session_factory=import_session_factory)
+
+    def test_schedule_import_rejects_malformed_rows(self, import_session_factory, tmp_path):
+        path = tmp_path / "bad-schedule.txt"
+        path.write_text("Saturday\t12-sept\t\tMissing time\n", encoding="utf-8")
+        with pytest.raises(ScheduleParseError, match="line 1"):
+            import_schedule(str(path), year=2026, session_factory=import_session_factory)
+
     def test_import_flexible_headers(self, import_session_factory):
         """Import with flexible header variants."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:

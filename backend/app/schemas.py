@@ -244,8 +244,11 @@ class AdminUpdateCandidateRequest(BaseModel):
 class AdminCreateEventRequest(BaseModel):
     name: str
     description: str | None = None
+    location: str | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
+    competition_format: Literal["individual", "team"] | None = None
+    voting_enabled: bool = False
 
 
 class AdminUpdateEventRequest(BaseModel):
@@ -311,10 +314,11 @@ class ParticipantResponse(BaseModel):
 # Admin - Vote Record
 class AdminVoteRecord(BaseModel):
     voter_name: str
-    voter_roll_number: str
+    voter_roll_number: str | None = None
     candidate_name: str
     event_id: int
     created_at: datetime
+    free_voter_identifier: str | None = None
 
 
 # ============================================================================

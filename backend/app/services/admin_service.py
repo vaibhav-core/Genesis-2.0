@@ -47,13 +47,16 @@ def update_candidate(candidate_id: int, db: Session, **kwargs) -> Candidate | No
     return candidate
 
 
-def create_event(name: str, description: str | None, start_time, end_time, db: Session) -> Event:
+def create_event(name: str, description: str | None, location: str | None, start_time, end_time, competition_format: str | None, voting_enabled: bool, db: Session) -> Event:
     """Create a new event."""
     event = Event(
         name=name,
         description=description,
+        location=location,
         start_time=start_time,
-        end_time=end_time
+        end_time=end_time,
+        competition_format=competition_format,
+        voting_enabled=voting_enabled,
     )
     db.add(event)
     db.commit()
@@ -96,8 +99,7 @@ def update_event(event_id: int, db: Session, **kwargs) -> Event | None:
     if not event:
         return None
     for key, value in kwargs.items():
-        if value is not None:
-            setattr(event, key, value)
+        setattr(event, key, value)
     db.commit()
     db.refresh(event)
     return event
@@ -111,6 +113,26 @@ def set_voting_status(event_id: int, status: str, db: Session) -> Event | None:
     db.commit()
     db.refresh(event)
     return event
+
+
+def delete_event(event_id: int, db: Session) -> bool:
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        return False
+    db.query(Vote).filter(Vote.event_id == event_id).delete(synchronize_session=False)
+    candidate_ids = [row[0] for row in db.query(Candidate.id).filter(Candidate.event_id == event_id).all()]
+    if candidate_ids:
+        db.query(Vote).filter(Vote.candidate_id.in_(candidate_ids)).delete(synchronize_session=False)
+        db.query(Candidate).filter(Candidate.id.in_(candidate_ids)).delete(synchronize_session=False)
+    participant_ids = [row[0] for row in db.query(Participant.id).filter(Participant.event_id == event_id).all()]
+    if participant_ids:
+        event.winner_participant_id = None
+        db.flush()
+        db.query(TeamMember).filter(TeamMember.participant_id.in_(participant_ids)).delete(synchronize_session=False)
+        db.query(Participant).filter(Participant.id.in_(participant_ids)).delete(synchronize_session=False)
+    db.delete(event)
+    db.commit()
+    return True
 
 
 def create_participant(
@@ -180,7 +202,7 @@ def delete_participant(event_id: int, participant_id: int, db: Session) -> bool:
 def get_all_votes(db: Session) -> list[dict]:
     """
     Get all votes with voter and candidate details.
-    Returns list of dicts: [{ voter_name, voter_roll_number, candidate_name, category, created_at }, ...]
+    Free-mode votes are included even though they have no linked Student.
     Sorted by created_at descending (most recent first).
     """
     votes = db.query(
@@ -188,8 +210,9 @@ def get_all_votes(db: Session) -> list[dict]:
         Student.roll_number.label("voter_roll_number"),
         Candidate.name.label("candidate_name"),
         Vote.event_id,
-        Vote.created_at
-    ).join(
+        Vote.created_at,
+        Vote.free_voter_identifier,
+    ).outerjoin(
         Student, Vote.voter_id == Student.id
     ).join(
         Candidate, Vote.candidate_id == Candidate.id
@@ -197,11 +220,12 @@ def get_all_votes(db: Session) -> list[dict]:
     
     return [
         {
-            "voter_name": v[0],
             "voter_roll_number": v[1],
             "candidate_name": v[2],
             "event_id": v[3],
-            "created_at": v[4]
+            "created_at": v[4],
+            "free_voter_identifier": v[5],
+            "voter_name": v[0] or "Free vote",
         }
         for v in votes
     ]

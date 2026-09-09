@@ -22,6 +22,7 @@ from ..services.admin_service import (
     create_candidate,
     update_candidate,
     create_event,
+    delete_event,
     update_event,
     set_voting_status,
     set_event_winner,
@@ -184,11 +185,25 @@ def create_new_event(
     event = create_event(
         request.name,
         request.description,
+        request.location,
         request.start_time,
         request.end_time,
+        request.competition_format,
+        request.voting_enabled,
         db
     )
     return EventResponse(**event.__dict__)
+
+
+@router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_event_endpoint(
+    event_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if not delete_event(event_id, db):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/events/{event_id}")

@@ -31,10 +31,11 @@ export interface Participant {
 
 export interface VoteRecord {
   voter_name: string;
-  voter_roll_number: string;
+  voter_roll_number?: string | null;
   candidate_name: string;
   event_id: number;
   created_at: string;
+  free_voter_identifier?: string | null;
 }
 
 export interface Candidate {
