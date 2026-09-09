@@ -1,0 +1,4 @@
+import { EVENTS } from "@/config/genesis";
+import { EventCard, GenesisCountdown, PageShell, SectionHeading } from "@/components/genesis-ui";
+
+export default function EventsPage() { return <PageShell><main className="page-main"><section className="page-heading"><span className="eyebrow">THE PROGRAMME</span><h1>Make a date<br /><em>with Genesis.</em></h1><GenesisCountdown /></section><section className="section schedule"><SectionHeading kicker="DAY 01 / 12 SEPTEMBER" title="Arrive curious." /><div className="event-grid">{EVENTS.day1.map(event => <EventCard key={event.id} event={event} />)}</div><SectionHeading kicker="DAY 02 / 13 SEPTEMBER" title="Leave changed." /><div className="event-grid">{EVENTS.day2.map(event => <EventCard key={event.id} event={event} />)}</div></section></main></PageShell> }
