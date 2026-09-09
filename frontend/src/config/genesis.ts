@@ -38,6 +38,10 @@ export const VOTING_CATEGORIES: VotingCategory[] = [
 ];
 
 export const SITE_INFO = { eventName: "Genesis 2.0", college: "IIT Dharwad", dates: "12–13 September 2026" };
+export function isGenesisEventName(name?: string | null): boolean {
+  if (!name) return false;
+  return name.toLowerCase().includes("genesis");
+}
 export type EventStatus = "ENDED" | "LIVE" | "COUNTDOWN" | "UPCOMING";
 export function getEventStatus(startTime: string, endTime: string, now = new Date()): EventStatus {
   const start = new Date(startTime).getTime();

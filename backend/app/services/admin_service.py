@@ -190,10 +190,19 @@ def event_is_competitive(event: Event) -> bool:
     return bool(event and (event.is_competitive or event.voting_enabled or event.competition_format))
 
 
+def is_genesis_event(event: Event | None) -> bool:
+    if not event or not event.name:
+        return False
+    normalized = " ".join(event.name.lower().split())
+    return "genesis" in normalized
+
+
 def pass_distribution_available(event: Event, now=None) -> bool:
     from datetime import datetime
     now = now or datetime.utcnow()
-    return bool(event and (event.pass_distribution_enabled_override or not event.start_time or now >= event.start_time))
+    if not event or not is_genesis_event(event):
+        return False
+    return bool(event.pass_distribution_enabled_override or not event.start_time or now >= event.start_time)
 
 
 def get_event_participants(event_id: int, db: Session) -> list[Participant] | None:

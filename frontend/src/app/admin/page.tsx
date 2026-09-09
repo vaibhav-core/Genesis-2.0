@@ -10,6 +10,7 @@ import {
   type ResultRow,
   type VoteRecord,
 } from "@/config/admin-api";
+import { isGenesisEventName } from "@/config/genesis";
 
 const TOKEN_KEY = "genesis_admin_token";
 const subscribe = () => () => undefined;
@@ -286,6 +287,7 @@ function EventManagement({
     catch (caught) { if (caught instanceof Error && caught.message !== "SESSION_EXPIRED") setFormError(caught.message); }
   };
   const competitive = event.is_competitive || event.voting_enabled || Boolean(event.competition_format);
+  const canOverridePassAccess = isGenesisEventName(event.name);
 
   return (
     <section className="admin-panel event-management">
@@ -299,7 +301,7 @@ function EventManagement({
         <div className="admin-form-grid"><label>Start<input type="datetime-local" value={startTime} onChange={(input) => setStartTime(input.target.value)} /></label><label>End<input type="datetime-local" value={endTime} onChange={(input) => setEndTime(input.target.value)} /></label></div>
         <label>Competition format<select value={format} onChange={(input) => setFormat(input.target.value as "" | "individual" | "team")}><option value="">None</option><option value="individual">Individual</option><option value="team">Team</option></select></label>
         <label className="checkbox-label"><input type="checkbox" checked={votingEnabled} onChange={(input) => setVotingEnabled(input.target.checked)} /> Voting enabled</label>
-        <label className="checkbox-label"><input type="checkbox" checked={passOverride} onChange={(input) => setPassOverride(input.target.checked)} /> Enable pass distribution early</label>
+        {canOverridePassAccess && <label className="checkbox-label"><input type="checkbox" checked={passOverride} onChange={(input) => setPassOverride(input.target.checked)} /> Enable pass distribution early</label>}
         <button className="admin-primary-button" disabled={saving} type="submit">{saving ? "Saving..." : "Save event"}</button>
       </form>
       <section className="pass-template-stub"><h3>Pass template</h3><p>Template upload coming soon.</p></section>

@@ -2,6 +2,8 @@
 Tests for pass verification endpoint (/api/pass/verify).
 """
 
+from datetime import datetime, timedelta
+
 import pytest
 
 
@@ -97,3 +99,37 @@ class TestPassVerification:
         assert data["valid"] is False
         assert data["reason"] == "student_not_found"
         assert "student" not in data
+
+    def test_pass_distribution_is_restricted_to_genesis_event(self, client, test_db, sample_students):
+        """Only the Genesis event can open pass distribution."""
+        from app.models import Event
+
+        regular_event = Event(
+            name="Freshers Fiesta",
+            start_time=datetime.utcnow() - timedelta(hours=1),
+            pass_distribution_enabled_override=True,
+        )
+        genesis_event = Event(
+            name="Genesis 2.0",
+            start_time=datetime.utcnow() - timedelta(hours=1),
+            pass_distribution_enabled_override=True,
+        )
+
+        test_db.add_all([regular_event, genesis_event])
+        test_db.commit()
+        test_db.refresh(regular_event)
+        test_db.refresh(genesis_event)
+
+        regular_response = client.post(
+            "/api/pass/verify",
+            json={"identifier_type": "roll_number", "value": "24ME001", "event_id": regular_event.id},
+        )
+        assert regular_response.status_code == 200
+        assert regular_response.json()["reason"] == "pass_distribution_not_open"
+
+        genesis_response = client.post(
+            "/api/pass/verify",
+            json={"identifier_type": "roll_number", "value": "24ME001", "event_id": genesis_event.id},
+        )
+        assert genesis_response.status_code == 200
+        assert genesis_response.json()["valid"] is True
