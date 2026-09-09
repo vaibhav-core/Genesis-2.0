@@ -22,7 +22,7 @@ function dayFromDescription(description: string | null | undefined) {
 }
 
 function toGenesisEvent(event: BackendEvent, index: number): GenesisEvent {
-	const date = event.start_time?.slice(0, 10) ?? (dayFromDescription(event.description) === "day2" ? "2026-09-13" : "2026-09-12");
+	const date = dayFromDescription(event.description) === "day2" ? "2026-09-13" : "2026-09-12";
 	const description = [event.description, event.location].filter(Boolean).join(" · ") || "A Genesis 2.0 programme event.";
 	return {
 		id: String(event.id),

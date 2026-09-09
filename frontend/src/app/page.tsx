@@ -8,7 +8,7 @@ import { Countdown, EventCard, PageShell, SectionHeading } from "@/components/ge
 type BackendEvent = { id: number; name: string; description?: string | null; start_time?: string | null; end_time?: string | null; location?: string | null; voting_enabled: boolean };
 
 function toPreviewEvent(event: BackendEvent, index: number): GenesisEvent {
-  const date = event.start_time?.slice(0, 10) ?? (event.description?.toLowerCase().startsWith("sunday") ? "2026-09-13" : "2026-09-12");
+  const date = event.description?.toLowerCase().startsWith("sunday") ? "2026-09-13" : "2026-09-12";
   return { id: String(event.id), title: event.name, description: [event.description, event.location].filter(Boolean).join(" · ") || "A Genesis 2.0 programme event.", date, startTime: event.start_time ?? undefined, endTime: event.end_time ?? undefined, category: event.voting_enabled ? "Competition" : "Programme", visual: String(index + 1).padStart(2, "0"), route: event.voting_enabled ? `/events/${event.id}/vote` : undefined };
 }
 
