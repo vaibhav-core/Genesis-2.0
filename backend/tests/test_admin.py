@@ -157,7 +157,7 @@ class TestAdminCandidates:
     def test_create_candidate(self, client, admin_token, test_db):
         """Create a new candidate."""
         from app.models import Event
-        competition = Event(name="Best Dancer", voting_enabled=True)
+        competition = Event(name="Best Dancer", is_competitive=True, voting_enabled=True)
         test_db.add(competition)
         test_db.commit()
         test_db.refresh(competition)
@@ -249,13 +249,28 @@ class TestAdminEvents:
         )
         assert response.status_code == 204
         assert test_db.query(Event).filter_by(id=event.id).first() is None
+
+    def test_pass_distribution_override(self, client, admin_token, test_db):
+        from app.models import Event
+        from datetime import datetime, timedelta
+        event = Event(name="Future Event", start_time=datetime.utcnow() + timedelta(days=1))
+        test_db.add(event)
+        test_db.commit()
+        test_db.refresh(event)
+        response = client.patch(
+            f"/api/admin/events/{event.id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"pass_distribution_enabled_override": True},
+        )
+        assert response.status_code == 200
+        assert response.json()["pass_distribution_enabled_override"] is True
     
     def test_set_event_winner(self, client, admin_token, test_db):
         """Set winner for an event."""
         from app.models import Event
         
         # Create event
-        event = Event(name="Freshers Party")
+        event = Event(name="Freshers Party", is_competitive=True)
         test_db.add(event)
         test_db.commit()
         test_db.refresh(event)

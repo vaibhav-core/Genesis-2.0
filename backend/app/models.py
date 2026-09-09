@@ -62,11 +62,14 @@ class Event(Base):
     location: Mapped[str | None] = mapped_column(String(150), nullable=True)
     competition_format: Mapped[str | None] = mapped_column(String(20), nullable=True)
     voting_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_competitive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     voting_status: Mapped[str] = mapped_column(String(20), default="not_started", nullable=False)
     winner: Mapped[str | None] = mapped_column(String(100), nullable=True)
     winner_participant_id: Mapped[int | None] = mapped_column(
         ForeignKey("participants.id"), nullable=True
     )
+    winner_photo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pass_distribution_enabled_override: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class Participant(Base):
@@ -77,6 +80,8 @@ class Participant(Base):
     participant_type: Mapped[str] = mapped_column(String(20), nullable=False)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     roll_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    photo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     team_members: Mapped[list["TeamMember"]] = relationship(

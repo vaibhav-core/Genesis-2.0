@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { EventCard, GenesisCountdown, PageShell, SectionHeading } from "@/components/genesis-ui";
+import { EventCard, GenesisCountdown, PageShell, SectionHeading, WinnerCard } from "@/components/genesis-ui";
 import type { GenesisEvent } from "@/config/genesis";
 
 type BackendEvent = {
@@ -14,6 +14,8 @@ type BackendEvent = {
 	voting_enabled: boolean;
 	voting_status: "not_started" | "open" | "closed";
 	winner?: string | null;
+	winner_photo?: string | null;
+	is_competitive: boolean;
 };
 
 const API_BASE = "/backend-api";
@@ -32,11 +34,13 @@ function toGenesisEvent(event: BackendEvent, index: number): GenesisEvent {
 		date,
 		startTime: event.start_time ?? undefined,
 		endTime: event.end_time ?? undefined,
-		category: event.voting_enabled ? "Competition" : "Programme",
+		category: event.is_competitive ? "Competition" : "Programme",
 		visual: String(index + 1).padStart(2, "0"),
-		route: event.voting_enabled ? `/events/${event.id}/vote` : undefined,
+		route: event.is_competitive && event.voting_enabled ? `/events/${event.id}/vote` : undefined,
 		winner: event.winner,
 		votingStatus: event.voting_status,
+		isCompetitive: event.is_competitive,
+		winnerPhoto: event.winner_photo,
 	};
 }
 
@@ -70,5 +74,6 @@ export default function EventsPage() {
 	const day2 = events.filter((event) => event.date === "2026-09-13");
 	const other = events.filter((event) => !day1.includes(event) && !day2.includes(event));
 
-	return <PageShell><main className="page-main"><section className="page-heading"><span className="eyebrow">THE PROGRAMME</span><h1>Make a date<br /><em>with Genesis.</em></h1><GenesisCountdown /></section><section className="section schedule">{loading && <p className="admin-muted">Loading the live schedule...</p>}{error && <p className="admin-alert" role="alert">{error}</p>}{!loading && !error && <><SectionHeading kicker="DAY 01 / 12 SEPTEMBER" title="Arrive curious." /><div className="event-grid">{day1.map((event) => <EventCard key={event.id} event={event} />)}</div><SectionHeading kicker="DAY 02 / 13 SEPTEMBER" title="Leave changed." /><div className="event-grid">{day2.map((event) => <EventCard key={event.id} event={event} />)}</div>{other.length > 0 && <><SectionHeading kicker="THE FULL PROGRAMME" title="More to discover." /><div className="event-grid">{other.map((event) => <EventCard key={event.id} event={event} />)}</div></>}</>}</section></main></PageShell>;
+	const renderEvent = (event: GenesisEvent) => <div key={event.id}><EventCard event={event} /><WinnerCard event={event} /></div>;
+	return <PageShell><main className="page-main"><section className="page-heading"><span className="eyebrow">THE PROGRAMME</span><h1>Make a date<br /><em>with Genesis.</em></h1><GenesisCountdown /></section><section className="section schedule">{loading && <p className="admin-muted">Loading the live schedule...</p>}{error && <p className="admin-alert" role="alert">{error}</p>}{!loading && !error && <><SectionHeading kicker="DAY 01 / 12 SEPTEMBER" title="Arrive curious." /><div className="event-grid">{day1.map(renderEvent)}</div><SectionHeading kicker="DAY 02 / 13 SEPTEMBER" title="Leave changed." /><div className="event-grid">{day2.map(renderEvent)}</div>{other.length > 0 && <><SectionHeading kicker="THE FULL PROGRAMME" title="More to discover." /><div className="event-grid">{other.map(renderEvent)}</div></>}</>}</section></main></PageShell>;
 }

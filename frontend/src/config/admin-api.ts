@@ -9,9 +9,12 @@ export interface AdminEvent {
   location?: string | null;
   competition_format?: "individual" | "team" | null;
   voting_enabled: boolean;
+  is_competitive: boolean;
   voting_status: "not_started" | "open" | "closed";
   winner?: string | null;
   winner_participant_id?: number | null;
+  winner_photo?: string | null;
+  pass_distribution_enabled_override: boolean;
 }
 
 export interface TeamMember {

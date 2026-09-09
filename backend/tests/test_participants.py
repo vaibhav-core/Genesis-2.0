@@ -4,7 +4,7 @@ from app.models import Event, Participant, TeamMember
 
 
 def event(test_db, name="Competition"):
-    competition = Event(name=name)
+    competition = Event(name=name, is_competitive=True)
     test_db.add(competition)
     test_db.commit()
     test_db.refresh(competition)
@@ -35,6 +35,8 @@ def test_create_individual_participant(client, admin_token, test_db):
         "name": "Rahul Kumar",
         "roll_number": "24ME001",
         "members": [],
+        "gender": None,
+        "photo": None,
     }
 
 

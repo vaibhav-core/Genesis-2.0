@@ -41,10 +41,11 @@ export default function AdminPage() {
   };
 
   const request = async <T,>(path: string, init: RequestInit = {}) => {
+    const isMultipart = init.body instanceof FormData;
     const response = await fetch(`${ADMIN_API_BASE}${path}`, {
       ...init,
       headers: {
-        "Content-Type": "application/json",
+        ...(isMultipart ? {} : { "Content-Type": "application/json" }),
         Authorization: `Bearer ${sessionStorage.getItem(TOKEN_KEY) ?? ""}`,
         ...init.headers,
       },
@@ -198,6 +199,7 @@ function EventManagement({
   const [participantName, setParticipantName] = useState("");
   const [rollNumber, setRollNumber] = useState("");
   const [members, setMembers] = useState<MemberDraft[]>([{ name: "", roll_number: "" }]);
+  const [participantPhoto, setParticipantPhoto] = useState<File | null>(null);
   const [winnerParticipantId, setWinnerParticipantId] = useState("");
   const [manualWinner, setManualWinner] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -205,6 +207,8 @@ function EventManagement({
   const [candidateName, setCandidateName] = useState("");
   const [candidateGender, setCandidateGender] = useState("");
   const [candidatePhoto, setCandidatePhoto] = useState("");
+  const [passOverride, setPassOverride] = useState(event.pass_distribution_enabled_override);
+  const [winnerPhoto, setWinnerPhoto] = useState<File | null>(null);
 
   const publicRequest = async <T,>(path: string) => {
     const response = await fetch(`${ADMIN_API_BASE}${path}`);
@@ -230,7 +234,7 @@ function EventManagement({
   useEffect(() => {
     setName(event.name); setDescription(event.description ?? ""); setLocation(event.location ?? "");
     setStartTime(event.start_time?.slice(0, 16) ?? ""); setEndTime(event.end_time?.slice(0, 16) ?? "");
-    setFormat(event.competition_format ?? ""); setVotingEnabled(event.voting_enabled);
+    setFormat(event.competition_format ?? ""); setVotingEnabled(event.voting_enabled); setPassOverride(event.pass_distribution_enabled_override);
     void loadVotingData();
     // Event identity/status changes are the intended refresh trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -239,7 +243,7 @@ function EventManagement({
   const saveEvent = async (formEvent: React.FormEvent) => {
     formEvent.preventDefault(); setSaving(true); setFormError("");
     try {
-      await request(`/admin/events/${event.id}`, { method: "PATCH", body: JSON.stringify({ name, description: description || null, location: location || null, start_time: startTime ? new Date(startTime).toISOString() : null, end_time: endTime ? new Date(endTime).toISOString() : null, competition_format: format || null, voting_enabled: votingEnabled }) });
+      await request(`/admin/events/${event.id}`, { method: "PATCH", body: JSON.stringify({ name, description: description || null, location: location || null, start_time: startTime ? new Date(startTime).toISOString() : null, end_time: endTime ? new Date(endTime).toISOString() : null, competition_format: format || null, voting_enabled: votingEnabled, is_competitive: Boolean(format || votingEnabled), pass_distribution_enabled_override: passOverride }) });
       await onRefresh();
     } catch (caught) { if (caught instanceof Error && caught.message !== "SESSION_EXPIRED") setFormError(caught.message); }
     finally { setSaving(false); }
@@ -254,7 +258,7 @@ function EventManagement({
   const addParticipant = async (formEvent: React.FormEvent) => {
     formEvent.preventDefault(); setFormError("");
     const payload = type === "individual" ? { participant_type: type, name: participantName, roll_number: rollNumber || null } : { participant_type: type, name: participantName, members: members.filter((member) => member.name.trim()) };
-    try { await request(`/admin/events/${event.id}/participants`, { method: "POST", body: JSON.stringify(payload) }); setParticipantName(""); setRollNumber(""); setMembers([{ name: "", roll_number: "" }]); await onRefresh(); }
+    try { const created = await request<Participant>(`/admin/events/${event.id}/participants`, { method: "POST", body: JSON.stringify(payload) }); if (participantPhoto) { const photoBody = new FormData(); photoBody.append("photo", participantPhoto); await request(`/admin/events/${event.id}/participants/${created.id}/photo`, { method: "POST", body: photoBody }); } setParticipantName(""); setRollNumber(""); setParticipantPhoto(null); setMembers([{ name: "", roll_number: "" }]); await onRefresh(); }
     catch (caught) { if (caught instanceof Error && caught.message !== "SESSION_EXPIRED") setFormError(caught.message); }
   };
 
@@ -275,6 +279,13 @@ function EventManagement({
     try { await request(`/admin/events/${event.id}/winner`, { method: "POST", body: JSON.stringify(payload) }); setWinnerParticipantId(""); setManualWinner(""); await onRefresh(); }
     catch (caught) { if (caught instanceof Error && caught.message !== "SESSION_EXPIRED") setFormError(caught.message); }
   };
+  const uploadWinnerPhoto = async () => {
+    if (!winnerPhoto) return;
+    const body = new FormData(); body.append("photo", winnerPhoto);
+    try { await request(`/admin/events/${event.id}/winner/photo`, { method: "POST", headers: { Authorization: `Bearer ${sessionStorage.getItem(TOKEN_KEY) ?? ""}` }, body }); setWinnerPhoto(null); await onRefresh(); }
+    catch (caught) { if (caught instanceof Error && caught.message !== "SESSION_EXPIRED") setFormError(caught.message); }
+  };
+  const competitive = event.is_competitive || event.voting_enabled || Boolean(event.competition_format);
 
   return (
     <section className="admin-panel event-management">
@@ -288,12 +299,14 @@ function EventManagement({
         <div className="admin-form-grid"><label>Start<input type="datetime-local" value={startTime} onChange={(input) => setStartTime(input.target.value)} /></label><label>End<input type="datetime-local" value={endTime} onChange={(input) => setEndTime(input.target.value)} /></label></div>
         <label>Competition format<select value={format} onChange={(input) => setFormat(input.target.value as "" | "individual" | "team")}><option value="">None</option><option value="individual">Individual</option><option value="team">Team</option></select></label>
         <label className="checkbox-label"><input type="checkbox" checked={votingEnabled} onChange={(input) => setVotingEnabled(input.target.checked)} /> Voting enabled</label>
+        <label className="checkbox-label"><input type="checkbox" checked={passOverride} onChange={(input) => setPassOverride(input.target.checked)} /> Enable pass distribution early</label>
         <button className="admin-primary-button" disabled={saving} type="submit">{saving ? "Saving..." : "Save event"}</button>
       </form>
-      {event.voting_enabled && <section className="voting-admin-section"><div className="admin-subheading"><h3>Voting controls</h3><span className={`voting-status status-${event.voting_status}`}>{event.voting_status}</span></div><div className="control-row"><button className="admin-primary-button" disabled={event.voting_status === "open"} onClick={() => void changeVoting("start")} type="button">Start voting</button><button className="admin-ghost-button" disabled={event.voting_status !== "open"} onClick={() => void changeVoting("stop")} type="button">Stop voting</button></div></section>}
+      <section className="pass-template-stub"><h3>Pass template</h3><p>Template upload coming soon.</p></section>
+      {competitive && event.voting_enabled && <section className="voting-admin-section"><div className="admin-subheading"><h3>Voting controls</h3><span className={`voting-status status-${event.voting_status}`}>{event.voting_status}</span></div><div className="control-row"><button className="admin-primary-button" disabled={event.voting_status === "open"} onClick={() => void changeVoting("start")} type="button">Start voting</button><button className="admin-ghost-button" disabled={event.voting_status !== "open"} onClick={() => void changeVoting("stop")} type="button">Stop voting</button></div></section>}
       <section className="participant-list"><h3>Participants</h3>{participants.length === 0 && <p className="admin-muted">No participants registered yet.</p>}{participants.map((participant) => <div className="participant-row" key={participant.id}><div><strong>{participant.name}</strong><span className="type-pill">{participant.participant_type}</span>{participant.roll_number && <small>{participant.roll_number}</small>}{participant.members.length > 0 && <div className="member-list">{participant.members.map((member) => <span key={member.id}>{member.name}{member.roll_number ? ` · ${member.roll_number}` : ""}</span>)}</div>}</div><div className="participant-actions"><button className="mini-button" onClick={() => { setWinnerParticipantId(String(participant.id)); setManualWinner(""); }} type="button">Set winner</button><button className="delete-button" onClick={() => { void request(`/admin/events/${event.id}/participants/${participant.id}`, { method: "DELETE" }).then(onRefresh); }} type="button">Remove</button></div></div>)}</section>
-      <div className="admin-forms"><form className="admin-form" onSubmit={addParticipant}><h3>Add participant</h3><div className="segmented"><button className={type === "individual" ? "selected" : ""} onClick={() => setType("individual")} type="button">Individual</button><button className={type === "team" ? "selected" : ""} onClick={() => setType("team")} type="button">Team</button></div><label>Name or team name<input value={participantName} onChange={(input) => setParticipantName(input.target.value)} required /></label>{type === "individual" ? <label>Roll number <span>(optional)</span><input value={rollNumber} onChange={(input) => setRollNumber(input.target.value)} /></label> : <div className="member-drafts"><span className="form-label">Team members</span>{members.map((member, index) => <div className="member-draft" key={index}><input aria-label="Member name" placeholder="Name" value={member.name} onChange={(input) => setMembers(members.map((item, itemIndex) => itemIndex === index ? { ...item, name: input.target.value } : item))} /><input aria-label="Member roll number" placeholder="Roll number" value={member.roll_number} onChange={(input) => setMembers(members.map((item, itemIndex) => itemIndex === index ? { ...item, roll_number: input.target.value } : item))} /><button className="delete-button" onClick={() => setMembers(members.filter((_, itemIndex) => itemIndex !== index))} type="button">×</button></div>)}<button className="add-member" onClick={() => setMembers([...members, { name: "", roll_number: "" }])} type="button">Add member</button></div>}<button className="admin-primary-button" type="submit">Register participant</button></form>
-        <form className="admin-form" onSubmit={setWinner}><h3>Winner</h3><label>Participant<select value={winnerParticipantId} onChange={(input) => { setWinnerParticipantId(input.target.value); setManualWinner(""); }}><option value="">Choose a participant</option>{participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}</select></label><span className="or-divider">or enter a name</span><input value={manualWinner} onChange={(input) => { setManualWinner(input.target.value); setWinnerParticipantId(""); }} placeholder="Manual winner name" /><button className="admin-primary-button" disabled={!winnerParticipantId && !manualWinner.trim()} type="submit">Save winner</button></form>
+      <div className="admin-forms"><form className="admin-form" onSubmit={addParticipant}><h3>Add participant</h3><div className="segmented"><button className={type === "individual" ? "selected" : ""} onClick={() => setType("individual")} type="button">Individual</button><button className={type === "team" ? "selected" : ""} onClick={() => setType("team")} type="button">Team</button></div><label>Name or team name<input value={participantName} onChange={(input) => setParticipantName(input.target.value)} required /></label>{type === "individual" ? <label>Roll number <span>(optional)</span><input value={rollNumber} onChange={(input) => setRollNumber(input.target.value)} /></label> : <div className="member-drafts"><span className="form-label">Team members</span>{members.map((member, index) => <div className="member-draft" key={index}><input aria-label="Member name" placeholder="Name" value={member.name} onChange={(input) => setMembers(members.map((item, itemIndex) => itemIndex === index ? { ...item, name: input.target.value } : item))} /><input aria-label="Member roll number" placeholder="Roll number" value={member.roll_number} onChange={(input) => setMembers(members.map((item, itemIndex) => itemIndex === index ? { ...item, roll_number: input.target.value } : item))} /><button className="delete-button" onClick={() => setMembers(members.filter((_, itemIndex) => itemIndex !== index))} type="button">×</button></div>)}<button className="add-member" onClick={() => setMembers([...members, { name: "", roll_number: "" }])} type="button">Add member</button></div>}<label>Photo <span>(optional device image)</span><input accept="image/*" onChange={(input) => setParticipantPhoto(input.target.files?.[0] ?? null)} type="file" /></label><button className="admin-primary-button" type="submit">Register participant</button></form>
+        {competitive && <form className="admin-form" onSubmit={setWinner}><h3>Winner</h3><label>Participant<select value={winnerParticipantId} onChange={(input) => { setWinnerParticipantId(input.target.value); setManualWinner(""); }}><option value="">Choose a participant</option>{participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}</select></label><span className="or-divider">or enter a name</span><input value={manualWinner} onChange={(input) => { setManualWinner(input.target.value); setWinnerParticipantId(""); }} placeholder="Manual winner name" /><button className="admin-primary-button" disabled={!winnerParticipantId && !manualWinner.trim()} type="submit">Save winner</button>{event.winner && <><label>Winner photo <span>(optional device image)</span><input accept="image/*" onChange={(input) => setWinnerPhoto(input.target.files?.[0] ?? null)} type="file" /></label><button className="admin-ghost-button" disabled={!winnerPhoto} onClick={() => void uploadWinnerPhoto()} type="button">Upload winner photo</button></>}</form>}
       </div>
       {event.voting_enabled && <section className="candidate-admin-section"><div className="admin-subheading"><h3>Competitors</h3><button className="admin-ghost-button" onClick={() => void loadVotingData()} type="button">Refresh results</button></div><div className="candidate-admin-list">{candidates.map((candidate) => <div className="candidate-admin-row" key={candidate.id}><div><strong>{candidate.name}</strong><small>{candidate.gender || "No gender set"} · {candidate.photo ? "Photo provided" : "No photo"}</small></div><button className="delete-button" onClick={() => void deactivateCandidate(candidate)} type="button">Deactivate</button></div>)}</div><form className="admin-form" onSubmit={addCandidate}><h3>Add competitor</h3><label>Name<input value={candidateName} onChange={(input) => setCandidateName(input.target.value)} required /></label><label>Gender<select value={candidateGender} onChange={(input) => setCandidateGender(input.target.value)}><option value="">Select</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option><option value="prefer">Prefer not to say</option></select></label><label>Photo URL <span>(optional)</span><input value={candidatePhoto} onChange={(input) => setCandidatePhoto(input.target.value)} /></label><button className="admin-primary-button" type="submit">Add competitor</button></form>{event.voting_status !== "not_started" && <VoteSummary results={results} />}</section>}
     </section>

@@ -108,6 +108,7 @@ class Event(EventBase):
 class PassVerifyRequest(BaseModel):
     identifier_type: str  # "roll_number" or "name"
     value: str
+    event_id: int | None = None
 
 
 class PassVerifyResponseStudent(BaseModel):
@@ -249,6 +250,8 @@ class AdminCreateEventRequest(BaseModel):
     end_time: datetime | None = None
     competition_format: Literal["individual", "team"] | None = None
     voting_enabled: bool = False
+    is_competitive: bool = False
+    pass_distribution_enabled_override: bool = False
 
 
 class AdminUpdateEventRequest(BaseModel):
@@ -259,6 +262,8 @@ class AdminUpdateEventRequest(BaseModel):
     end_time: datetime | None = None
     competition_format: Literal["individual", "team"] | None = None
     voting_enabled: bool | None = None
+    is_competitive: bool | None = None
+    pass_distribution_enabled_override: bool | None = None
 
 
 # Admin - Set Event Winner
@@ -283,6 +288,8 @@ class AdminCreateParticipantRequest(BaseModel):
     name: str
     roll_number: str | None = None
     members: list[TeamMemberInput] | None = None
+    gender: Literal["male", "female", "other"] | None = None
+    photo: str | None = None
 
     @model_validator(mode="after")
     def validate_members(self):
@@ -309,6 +316,8 @@ class ParticipantResponse(BaseModel):
     name: str
     roll_number: str | None = None
     members: list[TeamMemberResponse] = []
+    gender: str | None = None
+    photo: str | None = None
 
 
 # Admin - Vote Record
@@ -335,9 +344,12 @@ class EventResponse(BaseModel):
     location: str | None = None
     competition_format: str | None = None
     voting_enabled: bool = False
+    is_competitive: bool = False
     voting_status: str = "not_started"
     winner: str | None = None
     winner_participant_id: int | None = None
+    winner_photo: str | None = None
+    pass_distribution_enabled_override: bool = False
 
     class Config:
         from_attributes = True

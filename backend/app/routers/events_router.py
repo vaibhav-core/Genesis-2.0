@@ -15,6 +15,8 @@ def get_all_events(db: Session = Depends(get_db)):
     Get all events (public endpoint).
     """
     events = db.query(Event).all()
+    for event in events:
+        event.is_competitive = event.is_competitive or event.voting_enabled or bool(event.competition_format)
     return [EventResponse(**e.__dict__) for e in events]
 
 
@@ -32,4 +34,5 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
             detail="Event not found"
         )
     
+    event.is_competitive = event.is_competitive or event.voting_enabled or bool(event.competition_format)
     return EventResponse(**event.__dict__)

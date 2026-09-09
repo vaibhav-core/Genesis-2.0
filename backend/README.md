@@ -113,13 +113,22 @@ python scripts/create_admin.py
 # Or: python scripts/create_admin.py --username admin --password pass
 ```
 
-### 4. Run Server
+### 4. Apply Database Migrations
+```powershell
+Copy-Item data\freshers.db data\freshers.db.backup
+py -m alembic upgrade head
+```
+
+Rollback one revision with `py -m alembic downgrade -1`. The application does not run
+`Base.metadata.create_all()` at startup.
+
+### 5. Run Server
 ```bash
 uvicorn app.main:app --reload
 # Server at http://localhost:8000
 ```
 
-### 5. Import Students (Optional)
+### 6. Import Students (Optional)
 ```bash
 python scripts/import_students.py data/sample_students.csv
 ```

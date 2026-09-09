@@ -12,7 +12,7 @@ from .student_service import normalize_roll
 def create_candidate(event_id: int, name: str, gender: str | None, photo: str | None, db: Session) -> Candidate | None:
     """Create a candidate for a voting-enabled event."""
     event = db.query(Event).filter(Event.id == event_id).first()
-    if not event or not event.voting_enabled:
+    if not event or not event.is_competitive or not event.voting_enabled:
         return None
     candidate = Candidate(
         event_id=event_id,
@@ -47,7 +47,7 @@ def update_candidate(candidate_id: int, db: Session, **kwargs) -> Candidate | No
     return candidate
 
 
-def create_event(name: str, description: str | None, location: str | None, start_time, end_time, competition_format: str | None, voting_enabled: bool, db: Session) -> Event:
+def create_event(name: str, description: str | None, location: str | None, start_time, end_time, competition_format: str | None, voting_enabled: bool, is_competitive: bool, pass_distribution_enabled_override: bool, db: Session) -> Event:
     """Create a new event."""
     event = Event(
         name=name,
@@ -57,6 +57,8 @@ def create_event(name: str, description: str | None, location: str | None, start
         end_time=end_time,
         competition_format=competition_format,
         voting_enabled=voting_enabled,
+        is_competitive=is_competitive or voting_enabled or competition_format is not None,
+        pass_distribution_enabled_override=pass_distribution_enabled_override,
     )
     db.add(event)
     db.commit()
@@ -85,9 +87,11 @@ def set_event_winner(
             return None
         event.winner = participant.name
         event.winner_participant_id = participant.id
+        event.winner_photo = participant.photo
     else:
         event.winner = winner
         event.winner_participant_id = None
+        event.winner_photo = None
 
     db.commit()
     db.refresh(event)
@@ -141,6 +145,8 @@ def create_participant(
     name: str,
     roll_number: str | None,
     members: list[dict] | None,
+    gender: str | None,
+    photo: str | None,
     db: Session,
 ) -> Participant | None:
     """Create an individual or team participant for an existing event."""
@@ -159,6 +165,8 @@ def create_participant(
         participant_type=participant_type,
         name=name,
         roll_number=normalize_roll(roll_number) if roll_number is not None else None,
+        gender=gender,
+        photo=photo,
     )
     if members:
         participant.team_members = [
@@ -176,6 +184,16 @@ def create_participant(
     db.commit()
     db.refresh(participant)
     return participant
+
+
+def event_is_competitive(event: Event) -> bool:
+    return bool(event and (event.is_competitive or event.voting_enabled or event.competition_format))
+
+
+def pass_distribution_available(event: Event, now=None) -> bool:
+    from datetime import datetime
+    now = now or datetime.utcnow()
+    return bool(event and (event.pass_distribution_enabled_override or not event.start_time or now >= event.start_time))
 
 
 def get_event_participants(event_id: int, db: Session) -> list[Participant] | None:

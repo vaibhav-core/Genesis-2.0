@@ -14,6 +14,8 @@ export interface GenesisEvent {
   route?: string;
   winner?: string | null;
   votingStatus?: "not_started" | "open" | "closed";
+  isCompetitive?: boolean;
+  winnerPhoto?: string | null;
 }
 
 export const EVENTS: { day1: GenesisEvent[]; day2: GenesisEvent[] } = {

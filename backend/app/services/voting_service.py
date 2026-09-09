@@ -34,7 +34,7 @@ def _voter_details(request, db: Session):
 
 def verify_vote_eligibility(request: VotingVerifyRequest, db: Session):
     event, candidate = _event_and_candidate(request.event_id, request.candidate_id, db)
-    if not event or not event.voting_enabled:
+    if not event or not event.is_competitive or not event.voting_enabled:
         return False, "voting_not_enabled", None
     if event.voting_status != "open":
         return False, "voting_not_open", None
@@ -59,7 +59,7 @@ def verify_vote_eligibility(request: VotingVerifyRequest, db: Session):
 
 def submit_vote(request: VoteRequest, db: Session):
     event, candidate = _event_and_candidate(request.event_id, request.candidate_id, db)
-    if not event or not event.voting_enabled:
+    if not event or not event.is_competitive or not event.voting_enabled:
         return False, "voting_not_enabled", "Voting is not enabled for this event."
     if event.voting_status != "open":
         return False, "voting_not_open", "Voting is not open for this event."

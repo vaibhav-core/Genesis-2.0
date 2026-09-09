@@ -105,8 +105,8 @@ def sample_candidates(test_db):
     from app.models import Candidate, Event
 
     events = [
-        Event(name="Mister Freshers", voting_enabled=True, voting_status="open"),
-        Event(name="Miss Freshers", voting_enabled=True, voting_status="open"),
+        Event(name="Mister Freshers", is_competitive=True, voting_enabled=True, voting_status="open"),
+        Event(name="Miss Freshers", is_competitive=True, voting_enabled=True, voting_status="open"),
     ]
     for event in events:
         test_db.add(event)

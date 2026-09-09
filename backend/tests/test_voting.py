@@ -44,7 +44,7 @@ def test_free_identifier_is_normalized(client, sample_candidates):
 
 
 def test_voting_disabled_and_status_gates(client, test_db):
-    event = Event(name="Disabled")
+    event = Event(name="Disabled", is_competitive=True)
     test_db.add(event)
     test_db.commit()
     test_db.refresh(event)
@@ -66,7 +66,7 @@ def test_voting_disabled_and_status_gates(client, test_db):
 
 
 def test_voting_start_stop_transitions_and_gate(client, admin_token, test_db):
-    event = Event(name="Managed", voting_enabled=True)
+    event = Event(name="Managed", is_competitive=True, voting_enabled=True)
     test_db.add(event)
     test_db.commit()
     test_db.refresh(event)
@@ -98,6 +98,17 @@ def test_candidate_creation_requires_voting_enabled(client, admin_token, test_db
 def test_candidate_must_belong_to_event(client, sample_candidates):
     response = client.post("/api/voting/vote", json=vote_payload("free", 2, 1, "FREE6"))
     assert response.json()["reason"] == "invalid_candidate"
+
+
+def test_noncompetitive_event_rejects_voting(client, test_db):
+    event = Event(name="Talk", voting_enabled=True, voting_status="open", is_competitive=False)
+    test_db.add(event)
+    test_db.commit()
+    candidate = Candidate(event_id=event.id, name="Not allowed")
+    test_db.add(candidate)
+    test_db.commit()
+    response = client.post("/api/voting/vote", json=vote_payload("free", event.id, candidate.id, "FREE-TALK"))
+    assert response.json()["reason"] == "voting_not_enabled"
 
 
 def test_results_are_event_scoped(client, sample_students, sample_candidates, test_db):

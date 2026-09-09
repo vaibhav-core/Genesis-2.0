@@ -40,7 +40,20 @@ python scripts/create_admin.py --username admin_user --password secure_password
 
 The password is hashed immediately with bcrypt and stored in the database. **You only need to do this once per admin account.**
 
-## 4. Run the Server
+## 4. Apply Database Migrations
+
+Back up the live SQLite database and apply all schema revisions before starting the server:
+
+```powershell
+Copy-Item data\freshers.db data\freshers.db.backup
+py -m alembic upgrade head
+```
+
+To target another database explicitly, set `DATABASE_URL` before running Alembic. Roll back one
+revision with `py -m alembic downgrade -1`. The application no longer runs `create_all()` at
+startup; schema changes must be applied with Alembic.
+
+## 5. Run the Server
 
 ```bash
 uvicorn app.main:app --reload
@@ -50,7 +63,7 @@ Server runs at `http://localhost:8000`
 - Health check: `http://localhost:8000/health`
 - API docs: `http://localhost:8000/docs`
 
-## 5. Import Students (Optional)
+## 6. Import Students (Optional)
 
 Import students from a CSV file:
 

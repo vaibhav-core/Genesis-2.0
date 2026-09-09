@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..models import Event
+from ..services.admin_service import pass_distribution_available
 from ..services.student_service import find_student_by_roll, find_students_by_name
 from ..schemas import PassVerifyRequest, PassVerifyResponseSuccess, PassVerifyResponseFailure
 
@@ -18,6 +20,13 @@ def verify_pass(
     Verify student identity by roll number or name.
     Returns 200 with valid/invalid status (never 404).
     """
+    if request.event_id is not None:
+        event = db.query(Event).filter(Event.id == request.event_id).first()
+        if not event:
+            return PassVerifyResponseFailure(valid=False, reason="event_not_found", message="Event not found.")
+        if not pass_distribution_available(event):
+            return PassVerifyResponseFailure(valid=False, reason="pass_distribution_not_open", message="Pass distribution is not open for this event.")
+
     if request.identifier_type == "roll_number":
         student = find_student_by_roll(request.value, db)
         

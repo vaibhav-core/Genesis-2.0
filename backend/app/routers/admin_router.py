@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Response, UploadFile, File
+from pathlib import Path
+import shutil
+import uuid
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AdminUser
+from ..models import AdminUser, Event, Participant
 from ..security import authenticate_admin, create_admin_token, verify_admin_token, ADMIN_JWT_EXPIRY_HOURS
 from ..schemas import (
     AdminLoginRequest, 
@@ -30,6 +33,7 @@ from ..services.admin_service import (
     create_participant,
     get_event_participants,
     delete_participant,
+    event_is_competitive,
 )
 from ..services.vote_service import reset_all_votes
 
@@ -199,6 +203,8 @@ def create_new_event(
         request.end_time,
         request.competition_format,
         request.voting_enabled,
+        request.is_competitive,
+        request.pass_distribution_enabled_override,
         db
     )
     return EventResponse(**event.__dict__)
@@ -254,6 +260,11 @@ def set_winner(
     """
     Set the winner for an event (admin only).
     """
+    target_event = db.query(Event).filter(Event.id == event_id).first()
+    if not target_event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    if not event_is_competitive(target_event):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This event is not competitive")
     event = set_event_winner(
         event_id,
         request.winner,
@@ -278,6 +289,8 @@ def participant_response(participant) -> ParticipantResponse:
         name=participant.name,
         roll_number=participant.roll_number,
         members=participant.team_members,
+        gender=participant.gender,
+        photo=participant.photo,
     )
 
 
@@ -295,12 +308,70 @@ def add_participant(
             request.name,
             request.roll_number,
             [member.model_dump() for member in request.members] if request.members else None,
+            request.gender,
+            request.photo,
             db,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     if not participant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return participant_response(participant)
+
+
+@router.post("/events/{event_id}/winner/photo")
+def upload_winner_photo(
+    event_id: int,
+    photo: UploadFile = File(...),
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if not event_is_competitive(event):
+        raise HTTPException(status_code=400, detail="This event is not competitive")
+    if not photo.content_type or not photo.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are accepted")
+    upload_dir = Path(__file__).resolve().parents[2] / "data" / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    target = upload_dir / f"winner-{event_id}-{uuid.uuid4().hex}{Path(photo.filename or '').suffix.lower()}"
+    contents = photo.file.read(5 * 1024 * 1024 + 1)
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image must be 5 MB or smaller")
+    target.write_bytes(contents)
+    event.winner_photo = f"/uploads/{target.name}"
+    db.commit()
+    db.refresh(event)
+    return EventResponse(**event.__dict__)
+
+
+@router.post("/events/{event_id}/participants/{participant_id}/photo")
+def upload_participant_photo(
+    event_id: int,
+    participant_id: int,
+    photo: UploadFile = File(...),
+    admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    participant = db.query(Participant).filter(
+        Participant.id == participant_id,
+        Participant.event_id == event_id,
+    ).first()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+    if not photo.content_type or not photo.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are accepted")
+    contents = photo.file.read(5 * 1024 * 1024 + 1)
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image must be 5 MB or smaller")
+    upload_dir = Path(__file__).resolve().parents[2] / "data" / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    target = upload_dir / f"participant-{participant_id}-{uuid.uuid4().hex}{Path(photo.filename or '').suffix.lower()}"
+    target.write_bytes(contents)
+    participant.photo = f"/uploads/{target.name}"
+    db.commit()
+    db.refresh(participant)
     return participant_response(participant)
 
 
