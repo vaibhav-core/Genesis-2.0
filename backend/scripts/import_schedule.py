@@ -13,7 +13,12 @@ from app.database import SessionLocal
 from app.models import Event
 
 
-TIME_RANGE = re.compile(r"^(.+?)\s+to\s+(.+?)$", re.IGNORECASE)
+ROW_PATTERN = re.compile(
+    r"^\s*(?P<day>\w+)\s+(?P<date>\d{1,2}-\w+)\s+(?P<name>.*?)\s+"
+    r"(?P<start>\d{1,2}:?\d{0,2}\s*(?:am|pm))\s+to\s+"
+    r"(?P<end>\d{1,2}:?\d{0,2}\s*(?:am|pm))\s*$",
+    re.IGNORECASE,
+)
 
 
 def parse_time(value: str, date_text: str, year: int | None):
@@ -35,15 +40,14 @@ def parse_schedule(schedule_path: str, year: int | None = None) -> list[dict]:
     rows = []
     with open(schedule_path, "r", encoding="utf-8") as schedule_file:
         for line in schedule_file:
-            columns = [column.strip() for column in line.rstrip("\n").split("\t")]
-            if len(columns) < 4 or columns[0].lower() == "day":
+            match = ROW_PATTERN.match(line)
+            if not match:
                 continue
-            day, date_text, name, time_text = columns[:4]
-            time_match = TIME_RANGE.match(time_text)
-            start_time = end_time = None
-            if time_match:
-                start_time = parse_time(time_match.group(1), date_text, year)
-                end_time = parse_time(time_match.group(2), date_text, year)
+            day = match.group("day").strip()
+            date_text = match.group("date").strip()
+            name = match.group("name").strip()
+            start_time = parse_time(match.group("start"), date_text, year)
+            end_time = parse_time(match.group("end"), date_text, year)
             rows.append({
                 "day": day,
                 "date_text": date_text,
@@ -58,8 +62,17 @@ def import_schedule(schedule_path: str, year: int | None = None, session_factory
     created = updated = skipped = 0
     db = session_factory()
     try:
-        for row in parse_schedule(schedule_path, year):
-            event = db.query(Event).filter(Event.name == row["name"]).first()
+        rows = parse_schedule(schedule_path, year)
+        existing_events = db.query(Event).order_by(Event.id).all()
+        blank_events = [event for event in existing_events if not event.name.strip()]
+        named_events = {event.name: event for event in existing_events if event.name.strip()}
+
+        for index, row in enumerate(rows):
+            event = named_events.get(row["name"])
+            if event is None and index < len(blank_events):
+                event = blank_events[index]
+                event.name = row["name"]
+                named_events[event.name] = event
             values = {
                 "description": f"{row['day']}, {row['date_text']}",
                 "start_time": row["start_time"],

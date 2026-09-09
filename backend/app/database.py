@@ -1,8 +1,11 @@
+from pathlib import Path
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 
-DATABASE_URL = "sqlite:///./data/freshers.db"
+DATABASE_PATH = Path(__file__).resolve().parent.parent / "data" / "freshers.db"
+DATABASE_URL = f"sqlite:///{DATABASE_PATH.as_posix()}"
 
 engine = create_engine(
     DATABASE_URL,
