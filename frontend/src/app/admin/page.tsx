@@ -10,7 +10,7 @@ import {
   type ResultRow,
   type VoteRecord,
 } from "@/config/admin-api";
-import { isGenesisEventName } from "@/config/genesis";
+import { isGenesisEventName, toEventIsoWithTimezone } from "@/config/genesis";
 
 const TOKEN_KEY = "genesis_admin_token";
 const subscribe = () => () => undefined;
@@ -114,8 +114,8 @@ export default function AdminPage() {
         name: String(form.get("name")),
         description: String(form.get("description") || "") || null,
         location: String(form.get("location") || "") || null,
-        start_time: form.get("start_time") ? new Date(String(form.get("start_time"))).toISOString() : null,
-        end_time: form.get("end_time") ? new Date(String(form.get("end_time"))).toISOString() : null,
+        start_time: toEventIsoWithTimezone(String(form.get("start_time") || "")),
+        end_time: toEventIsoWithTimezone(String(form.get("end_time") || "")),
         competition_format: form.get("competition_format") || null,
         voting_enabled: form.get("voting_enabled") === "on",
       }) });
@@ -244,7 +244,7 @@ function EventManagement({
   const saveEvent = async (formEvent: React.FormEvent) => {
     formEvent.preventDefault(); setSaving(true); setFormError("");
     try {
-      await request(`/admin/events/${event.id}`, { method: "PATCH", body: JSON.stringify({ name, description: description || null, location: location || null, start_time: startTime ? new Date(startTime).toISOString() : null, end_time: endTime ? new Date(endTime).toISOString() : null, competition_format: format || null, voting_enabled: votingEnabled, is_competitive: Boolean(format || votingEnabled), pass_distribution_enabled_override: passOverride }) });
+      await request(`/admin/events/${event.id}`, { method: "PATCH", body: JSON.stringify({ name, description: description || null, location: location || null, start_time: toEventIsoWithTimezone(startTime), end_time: toEventIsoWithTimezone(endTime), competition_format: format || null, voting_enabled: votingEnabled, is_competitive: Boolean(format || votingEnabled), pass_distribution_enabled_override: passOverride }) });
       await onRefresh();
     } catch (caught) { if (caught instanceof Error && caught.message !== "SESSION_EXPIRED") setFormError(caught.message); }
     finally { setSaving(false); }

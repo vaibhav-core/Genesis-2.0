@@ -1,6 +1,7 @@
 export const GENESIS_START = "2026-09-12T18:00:00+05:30";
 export const PASS_UNLOCK_DATE = "2026-09-12T18:00:00+05:30";
 export const COUNTDOWN_WINDOW_HOURS = 24;
+export const EVENT_TIMEZONE = "Asia/Kolkata";
 
 export interface GenesisEvent {
   id: string;
@@ -38,14 +39,46 @@ export const VOTING_CATEGORIES: VotingCategory[] = [
 ];
 
 export const SITE_INFO = { eventName: "Genesis 2.0", college: "IIT Dharwad", dates: "12–13 September 2026" };
+
+export function parseEventDateTime(value?: string | null): Date | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const direct = new Date(trimmed);
+  if (!Number.isNaN(direct.getTime())) return direct;
+
+  const normalized = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
+  const isoCandidate = /[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)
+    ? normalized
+    : `${normalized}+05:30`;
+  const parsed = new Date(isoCandidate);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function formatEventTime(value?: string | null): string {
+  const parsed = parseEventDateTime(value);
+  if (!parsed) return "";
+  return parsed.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: EVENT_TIMEZONE });
+}
+
+export function toEventIsoWithTimezone(dateTimeLocal: string | null | undefined): string | null {
+  if (!dateTimeLocal) return null;
+  const match = dateTimeLocal.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/);
+  if (!match) return dateTimeLocal;
+  const [, date, time] = match;
+  return new Date(`${date}T${time}:00+05:30`).toISOString();
+}
+
 export function isGenesisEventName(name?: string | null): boolean {
   if (!name) return false;
   return name.toLowerCase().includes("genesis");
 }
 export type EventStatus = "ENDED" | "LIVE" | "COUNTDOWN" | "UPCOMING";
 export function getEventStatus(startTime: string, endTime: string, now = new Date()): EventStatus {
-  const start = new Date(startTime).getTime();
-  const end = new Date(endTime).getTime();
+  const start = parseEventDateTime(startTime)?.getTime();
+  const end = parseEventDateTime(endTime)?.getTime();
+  if (start === undefined || end === undefined) return "UPCOMING";
   const current = now.getTime();
   if (current > end) return "ENDED";
   if (current >= start && current <= end) return "LIVE";
