@@ -1,7 +1,7 @@
 import { formatISTDisplayTime, getISTInstant } from "@/lib/genesisTime";
 
-export const GENESIS_START = getISTInstant("2026-09-12", "18:00");
-export const PASS_UNLOCK_DATE = getISTInstant("2026-09-12", "18:00");
+export const GENESIS_START = getISTInstant("2026-09-12", "08:00");
+export const PASS_UNLOCK_DATE = getISTInstant("2026-09-12", "08:00");
 export const COUNTDOWN_WINDOW_HOURS = 24;
 
 export interface GenesisEvent {
