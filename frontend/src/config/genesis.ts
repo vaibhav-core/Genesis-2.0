@@ -40,18 +40,22 @@ export const VOTING_CATEGORIES: VotingCategory[] = [
 
 export const SITE_INFO = { eventName: "Genesis 2.0", college: "IIT Dharwad", dates: "12–13 September 2026" };
 
+const withIstOffset = (value: string): string => {
+  if (!value) return value;
+  const normalized = value.trim();
+  if (!normalized) return normalized;
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)) return normalized;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalized)) return `${normalized}:00+05:30`;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(normalized)) return `${normalized.replace(" ", "T")}:00+05:30`;
+  return `${normalized.includes("T") ? normalized : normalized.replace(" ", "T")}+05:30`;
+};
+
 export function parseEventDateTime(value?: string | null): Date | null {
   if (!value) return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  const direct = new Date(trimmed);
-  if (!Number.isNaN(direct.getTime())) return direct;
-
-  const normalized = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
-  const isoCandidate = /[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)
-    ? normalized
-    : `${normalized}+05:30`;
+  const isoCandidate = withIstOffset(trimmed);
   const parsed = new Date(isoCandidate);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
@@ -74,11 +78,14 @@ export function isGenesisEventName(name?: string | null): boolean {
   if (!name) return false;
   return name.toLowerCase().includes("genesis");
 }
+
 export type EventStatus = "ENDED" | "LIVE" | "COUNTDOWN" | "UPCOMING";
+
 export function getEventStatus(startTime: string, endTime: string, now = new Date()): EventStatus {
   const start = parseEventDateTime(startTime)?.getTime();
   const end = parseEventDateTime(endTime)?.getTime();
   if (start === undefined || end === undefined) return "UPCOMING";
+
   const current = now.getTime();
   if (current > end) return "ENDED";
   if (current >= start && current <= end) return "LIVE";
