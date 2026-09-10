@@ -1,14 +1,18 @@
-export const GENESIS_START = "2026-09-12T18:00:00+05:30";
-export const PASS_UNLOCK_DATE = "2026-09-12T18:00:00+05:30";
+import { formatISTDisplayTime, getISTInstant } from "@/lib/genesisTime";
+
+export const GENESIS_START = getISTInstant("2026-09-12", "18:00");
+export const PASS_UNLOCK_DATE = getISTInstant("2026-09-12", "18:00");
 export const COUNTDOWN_WINDOW_HOURS = 24;
-export const EVENT_TIMEZONE = "Asia/Kolkata";
 
 export interface GenesisEvent {
   id: string;
   title: string;
   description: string;
+  /** IST calendar date, "YYYY-MM-DD" */
   date: string;
+  /** IST wall-clock start time, "HH:mm" */
   startTime?: string;
+  /** IST wall-clock end time, "HH:mm" */
   endTime?: string;
   category: string;
   visual: string;
@@ -21,12 +25,12 @@ export interface GenesisEvent {
 
 export const EVENTS: { day1: GenesisEvent[]; day2: GenesisEvent[] } = {
   day1: [
-    { id: "opening", title: "Opening Ceremony", description: "A bright beginning to two days of new names and shared stories.", date: "2026-09-12", startTime: "2026-09-12T18:00:00+05:30", endTime: "2026-09-12T19:00:00+05:30", category: "Ceremony", visual: "01" },
-    { id: "freshie-mixer", title: "Freshie Mixer", description: "Music, games, and the first collision of campus energy.", date: "2026-09-12", startTime: "2026-09-12T19:30:00+05:30", endTime: "2026-09-12T21:00:00+05:30", category: "Social", visual: "02" },
+    { id: "opening", title: "Opening Ceremony", description: "A bright beginning to two days of new names and shared stories.", date: "2026-09-12", startTime: "18:00", endTime: "19:00", category: "Ceremony", visual: "01" },
+    { id: "freshie-mixer", title: "Freshie Mixer", description: "Music, games, and the first collision of campus energy.", date: "2026-09-12", startTime: "19:30", endTime: "21:00", category: "Social", visual: "02" },
   ],
   day2: [
-    { id: "talent-night", title: "Talent Night", description: "The stage belongs to every voice, rhythm, and unexpected trick.", date: "2026-09-13", startTime: "2026-09-13T18:00:00+05:30", endTime: "2026-09-13T20:00:00+05:30", category: "Performance", visual: "03" },
-    { id: "mister-miss", title: "Mister & Miss Freshie", description: "A celebration of confidence, character, and campus charm.", date: "2026-09-13", startTime: "2026-09-13T20:30:00+05:30", endTime: "2026-09-13T22:00:00+05:30", category: "Spotlight", visual: "04", route: "/events/mister-miss-freshie" },
+    { id: "talent-night", title: "Talent Night", description: "The stage belongs to every voice, rhythm, and unexpected trick.", date: "2026-09-13", startTime: "18:00", endTime: "20:00", category: "Performance", visual: "03" },
+    { id: "mister-miss", title: "Mister & Miss Freshie", description: "A celebration of confidence, character, and campus charm.", date: "2026-09-13", startTime: "20:30", endTime: "22:00", category: "Spotlight", visual: "04", route: "/events/mister-miss-freshie" },
   ],
 };
 
@@ -40,38 +44,25 @@ export const VOTING_CATEGORIES: VotingCategory[] = [
 
 export const SITE_INFO = { eventName: "Genesis 2.0", college: "IIT Dharwad", dates: "12–13 September 2026" };
 
-const withIstOffset = (value: string): string => {
-  if (!value) return value;
-  const normalized = value.trim();
-  if (!normalized) return normalized;
-  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)) return normalized;
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalized)) return `${normalized}:00+05:30`;
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(normalized)) return `${normalized.replace(" ", "T")}:00+05:30`;
-  return `${normalized.includes("T") ? normalized : normalized.replace(" ", "T")}+05:30`;
-};
-
-export function parseEventDateTime(value?: string | null): Date | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  const isoCandidate = withIstOffset(trimmed);
-  const parsed = new Date(isoCandidate);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+/**
+ * Formats a "HH:mm" IST wall-clock time for display.
+ * Delegates to formatISTDisplayTime — no Date object, no timezone conversion.
+ */
+export function formatEventTime(time?: string | null): string {
+  if (!time) return "";
+  return formatISTDisplayTime(time);
 }
 
-export function formatEventTime(value?: string | null): string {
-  const parsed = parseEventDateTime(value);
-  if (!parsed) return "";
-  return parsed.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: EVENT_TIMEZONE });
-}
-
+/**
+ * Converts an admin datetime-local string ("YYYY-MM-DDThh:mm") to a UTC ISO
+ * string to store in the backend. The datetime-local value is interpreted as IST.
+ */
 export function toEventIsoWithTimezone(dateTimeLocal: string | null | undefined): string | null {
   if (!dateTimeLocal) return null;
   const match = dateTimeLocal.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/);
   if (!match) return dateTimeLocal;
   const [, date, time] = match;
-  return new Date(`${date}T${time}:00+05:30`).toISOString();
+  return getISTInstant(date, time).toISOString();
 }
 
 export function isGenesisEventName(name?: string | null): boolean {
@@ -81,11 +72,13 @@ export function isGenesisEventName(name?: string | null): boolean {
 
 export type EventStatus = "ENDED" | "LIVE" | "COUNTDOWN" | "UPCOMING";
 
-export function getEventStatus(startTime: string, endTime: string, now = new Date()): EventStatus {
-  const start = parseEventDateTime(startTime)?.getTime();
-  const end = parseEventDateTime(endTime)?.getTime();
-  if (start === undefined || end === undefined) return "UPCOMING";
-
+/**
+ * Determines the live status of an event.
+ * startTime and endTime are "HH:mm" IST wall-clock strings; date is "YYYY-MM-DD".
+ */
+export function getEventStatus(startTime: string, endTime: string, date: string, now = new Date()): EventStatus {
+  const start = getISTInstant(date, startTime).getTime();
+  const end = getISTInstant(date, endTime).getTime();
   const current = now.getTime();
   if (current > end) return "ENDED";
   if (current >= start && current <= end) return "LIVE";

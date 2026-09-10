@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { EventCard, GenesisCountdown, PageShell, SectionHeading, WinnerCard } from "@/components/genesis-ui";
 import type { GenesisEvent } from "@/config/genesis";
+import { utcIsoToIST } from "@/lib/genesisTime";
 
 type BackendEvent = {
 	id: number;
@@ -25,15 +26,18 @@ function dayFromDescription(description: string | null | undefined) {
 }
 
 function toGenesisEvent(event: BackendEvent, index: number): GenesisEvent {
-	const date = dayFromDescription(event.description) === "day2" ? "2026-09-13" : "2026-09-12";
+	const defaultDate = dayFromDescription(event.description) === "day2" ? "2026-09-13" : "2026-09-12";
+	const startIST = event.start_time ? utcIsoToIST(event.start_time) : null;
+	const endIST = event.end_time ? utcIsoToIST(event.end_time) : null;
+	const date = startIST?.date ?? defaultDate;
 	const description = [event.description, event.location].filter(Boolean).join(" · ") || "A Genesis 2.0 programme event.";
 	return {
 		id: String(event.id),
 		title: event.name,
 		description,
 		date,
-		startTime: event.start_time ?? undefined,
-		endTime: event.end_time ?? undefined,
+		startTime: startIST?.time,
+		endTime: endIST?.time,
 		category: event.is_competitive ? "Competition" : "Programme",
 		visual: String(index + 1).padStart(2, "0"),
 		route: event.is_competitive && event.voting_enabled ? `/events/${event.id}/vote` : undefined,

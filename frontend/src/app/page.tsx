@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GENESIS_START, SITE_INFO, type GenesisEvent } from "@/config/genesis";
+import { utcIsoToIST } from "@/lib/genesisTime";
 import { Countdown, EventCard, PageShell, SectionHeading } from "@/components/genesis-ui";
 
 type BackendEvent = { id: number; name: string; description?: string | null; start_time?: string | null; end_time?: string | null; location?: string | null; voting_enabled: boolean; is_competitive: boolean; voting_status?: "not_started" | "open" | "closed"; winner?: string | null; winner_photo?: string | null };
 
 function toPreviewEvent(event: BackendEvent, index: number): GenesisEvent {
-  const date = event.description?.toLowerCase().startsWith("sunday") ? "2026-09-13" : "2026-09-12";
-  return { id: String(event.id), title: event.name, description: [event.description, event.location].filter(Boolean).join(" · ") || "A Genesis 2.0 programme event.", date, startTime: event.start_time ?? undefined, endTime: event.end_time ?? undefined, category: event.is_competitive ? "Competition" : "Programme", visual: String(index + 1).padStart(2, "0"), route: event.is_competitive && event.voting_enabled ? `/events/${event.id}/vote` : undefined, winner: event.winner, votingStatus: event.voting_status, isCompetitive: event.is_competitive, winnerPhoto: event.winner_photo };
+  const defaultDate = event.description?.toLowerCase().startsWith("sunday") ? "2026-09-13" : "2026-09-12";
+  const startIST = event.start_time ? utcIsoToIST(event.start_time) : null;
+  const endIST = event.end_time ? utcIsoToIST(event.end_time) : null;
+  const date = startIST?.date ?? defaultDate;
+  return { id: String(event.id), title: event.name, description: [event.description, event.location].filter(Boolean).join(" · ") || "A Genesis 2.0 programme event.", date, startTime: startIST?.time, endTime: endIST?.time, category: event.is_competitive ? "Competition" : "Programme", visual: String(index + 1).padStart(2, "0"), route: event.is_competitive && event.voting_enabled ? `/events/${event.id}/vote` : undefined, winner: event.winner, votingStatus: event.voting_status, isCompetitive: event.is_competitive, winnerPhoto: event.winner_photo };
 }
 
 export default function Home() {
